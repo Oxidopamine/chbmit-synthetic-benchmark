@@ -1,0 +1,45 @@
+# Siena cross-dataset verification config (Tier C). Reuses the CHB-MIT pipeline
+# via the Siena manifest adapter. Prefer the SzCORE-formatted (bipolar) release.
+
+project:
+  name: siena_verification
+  base_seed: 42
+
+paths:
+  raw_siena: data/raw_siena
+  processed_siena: data/processed_siena
+  results: results_chbmit_synthetic
+
+preprocessing:
+  target_sampling_rate: 256
+  bandpass_low_hz: 0.5
+  bandpass_high_hz: 40.0
+  notch_hz: null
+
+windowing: {window_seconds: 4, stride_seconds: 2}
+
+channels:
+  montage: bipolar
+  max_dropped_seizure_fraction: 0.10
+
+splitting: {strategy: balanced_group_kfold, n_folds: 5}
+
+scarcity: {fractions: [1.0, 0.25], selection_level: seizure_event, minimum_generator_seizure_windows: 256}
+
+seeds: {dev: [42], core: [42]}
+
+detectors:
+  required: [eegnet, lct, tcn]
+
+generators:
+  in_house: [cvae]
+  core_synthetic_ratios: [1.0]
+
+augmentation:
+  core_methods: [real_only, classical_aug, synthetic_aug]
+
+classifier_training:
+  batch_size: 64
+  epochs: 80
+  learning_rate: 0.0003
+  early_stopping_patience: 12

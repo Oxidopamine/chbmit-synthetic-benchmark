@@ -1,0 +1,21 @@
+# Environments
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Datasets (never commit) — keep the directory, ignore contents
+/data/**
+!/data/.gitkeep
+
+# Generated results/artifacts — keep the directory, ignore contents
+/results_chbmit_synthetic/**
+!/results_chbmit_synthetic/.gitkeep
+
+# Stray data formats anywhere
+*.edf
+*.zarr/
+
+# OS / editor
+.DS_Store
+*.swp

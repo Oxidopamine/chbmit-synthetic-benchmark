@@ -1,0 +1,123 @@
+# CHB-MIT Synthetic Seizure Augmentation Benchmark - primary config
+# Mirrors chbmit_synthetic_augmentation_generator_x_detector_v5_0.md, Section 22.
+
+project:
+  name: chbmit_gen_x_detector
+  base_seed: 42
+
+paths:
+  raw_chbmit: data/raw_chbmit
+  processed_chbmit: data/processed_chbmit
+  raw_siena: data/raw_siena
+  processed_siena: data/processed_siena
+  results: results_chbmit_synthetic
+
+manifest:
+  include_chb24: true
+  group_chb01_chb21: true
+
+preprocessing:
+  target_sampling_rate: 256
+  bandpass_low_hz: 0.5
+  bandpass_high_hz: 40.0
+  notch_hz: null
+  dtype: float32
+  storage_format: zarr
+
+channels:
+  montage: bipolar
+  missing_channel_policy: drop_file
+  max_dropped_seizure_fraction: 0.10
+
+windowing:
+  window_seconds: 4
+  stride_seconds: 2
+  label_rule: center_in_seizure
+  exclude_boundary_seconds: 0
+  save_metadata_only: true
+
+normalization:
+  method: per_window_channel_zscore
+  scope: window
+  epsilon: 1.0e-6
+
+splitting:
+  strategy: balanced_group_kfold
+  n_folds: 5
+  validation_fraction_within_train: 0.20
+  require_seizure_in_val: true
+  require_seizure_in_test: true
+  balance_targets: [seizure_event_count, seizure_duration_seconds, total_duration_seconds]
+
+negative_sampling:
+  background_to_seizure_ratio: 5
+  exclude_seconds_around_seizure: 60
+
+scarcity:
+  fractions: [1.0, 0.5, 0.25]
+  optional_fractions: [0.10]
+  selection_level: seizure_event
+  same_subset_for_classifier_and_generator: true
+  minimum_generator_seizure_windows: 256
+
+seeds:
+  dev: [42]
+  core: [42, 123, 2024]
+
+detectors:
+  required: [eegnet, lct, tcn]
+  optional: [cnn_mamba, seizure_transformer]
+
+generators:
+  in_house: [wgan_gp, cvae]
+  optional_external: [gp_eeg]
+  optional_stretch: [diffusion]
+  core_synthetic_ratios: [1.0]
+  optional_synthetic_ratios: [0.5, 2.0]
+
+augmentation:
+  core_methods: [real_only, class_weighted, balanced_sampler, classical_aug, synthetic_aug]
+  target_class: seizure
+  classical:
+    jitter_std: 0.02
+    amplitude_scale: [0.9, 1.1]
+    max_time_shift_samples: 64
+    channel_dropout_p: 0.10
+    max_dropped_channels: 2
+
+classifier_training:
+  batch_size: 64
+  epochs: 80
+  early_stopping_patience: 12
+  learning_rate: 0.0003
+  optimizer: adamw
+  weight_decay: 0.0001
+  threshold_selection: validation_best_event_f1
+
+postprocessing:
+  method: k_of_n
+  k: 3
+  n: 5
+  threshold: validation_selected
+  min_alarm_gap_seconds: 60
+
+evaluation:
+  use_szcore: true
+  event_metrics: [event_sensitivity, event_precision, event_f1, fp_per_24h, fa_per_hour, median_latency_seconds]
+  sensitivity_at_fa_budgets: [0.5, 1.0, 2.0]
+  window_metrics: [balanced_accuracy, auroc, auprc, sensitivity, specificity, precision, recall, macro_f1, kappa]
+  patient_level: true
+
+stats:
+  paired_test: wilcoxon
+  bootstrap_ci: 0.95
+  report_per_cell: true
+
+quality_checks:
+  waveform_examples: 12
+  psd_examples: 200
+  embedding_method: umap
+  nearest_neighbors: 12
+  compute_mmd: true
+  compute_cross_channel_correlation: true
+  real_vs_synthetic_discriminator: true

@@ -1,0 +1,29 @@
+# Core scientific stack
+numpy>=1.24,<2.0
+scipy>=1.10
+pandas>=2.0
+pyyaml>=6.0
+tqdm>=4.65
+
+# EEG / EDF IO
+mne>=1.6
+pyedflib>=0.1.36
+
+# ML
+torch>=2.1          # CPU build on Windows by default (no CUDA GPU present)
+scikit-learn>=1.3
+
+# Storage
+zarr>=2.16,<3.0
+numcodecs>=0.12
+
+# Visualization / quality checks
+matplotlib>=3.7
+seaborn>=0.12
+umap-learn>=0.5
+
+# SzCORE-aligned event scoring (ESL-EPFL timescoring)
+timescoring>=0.0.5
+
+# Testing
+pytest>=7.4
