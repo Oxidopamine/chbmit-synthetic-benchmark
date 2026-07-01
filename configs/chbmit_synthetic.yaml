@@ -1,5 +1,7 @@
 # CHB-MIT Synthetic Seizure Augmentation Benchmark - primary config
-# Mirrors chbmit_synthetic_augmentation_generator_x_detector_v5_0.md, Section 22.
+# Mirrors chbmit_synthetic_augmentation_reframe_v5_3.md (harm-first reframe of v5.0/v5.2).
+# Core grid is the "minimum publishable" trimmed grid (v5.3 Sec 5.4): cVAE-only,
+# real_only/class_weighted/classical_aug/ungated/gated, single validation-selected q.
 
 project:
   name: chbmit_gen_x_detector
@@ -70,13 +72,17 @@ detectors:
 
 generators:
   in_house: [wgan_gp, cvae]
+  core: [cvae]                 # v5.3 Sec 5.4: cVAE only in the core grid
+  appendix: [wgan_gp]          # WGAN-GP is a sensitivity axis (appendix)
   optional_external: [gp_eeg]
   optional_stretch: [diffusion]
   core_synthetic_ratios: [1.0]
   optional_synthetic_ratios: [0.5, 2.0]
 
 augmentation:
-  core_methods: [real_only, class_weighted, balanced_sampler, classical_aug, synthetic_aug]
+  # v5.3 core conditions (balanced_sampler dropped from core; still selectable a la carte).
+  core_methods: [real_only, class_weighted, classical_aug, ungated_synthetic_aug,
+                 trust_gated_synthetic_aug]
   target_class: seizure
   classical:
     jitter_std: 0.02
@@ -121,3 +127,24 @@ quality_checks:
   compute_mmd: true
   compute_cross_channel_correlation: true
   real_vs_synthetic_discriminator: true
+
+# Fail-closed trust gate ADAPTED from TGA (bioRxiv 2026) to seizure-specific event-level
+# criteria (v5.3 Sec 3.1, 5). Teacher = the real_only detector (reused, not retrained).
+# Values are PRE-REGISTERED in PREREGISTRATION.md; do not tune on the test set.
+trust_gate:
+  teacher: real_only_model        # detector teacher = the real_only model on disk (Sec 5.1)
+  q_core: 0.90                    # single validation-selected admission quantile (core)
+  q_grid: [0.75, 0.90, 0.99]      # full admission sweep (appendix only, Sec 5.3)
+  oversample: 6                   # candidate pool = oversample x target synthetic count
+  admit_margin_event_f1: 0.0      # gated val event-F1 must beat real_only by >= this
+  fp24h_safety_slack: 0.25        # gated val FP/24h must not exceed real_only by > this
+  min_admitted: 1                 # below this, fail closed (treat as no synthetic admitted)
+
+# Pre-registered harm definition and tail-risk reporting (v5.3 Sec 0, 6). A paired delta
+# (vs the named references) counts as HARM if event-F1 drops past the threshold OR FP/24h
+# inflates past its threshold. Reported alongside harm_rate, worst-fold delta, and CVaR.
+harm:
+  references: [real_only, class_weighted, classical_aug]
+  delta_event_f1_threshold: -0.01   # d(event_f1) below this counts as harm
+  delta_fp24h_threshold: 0.25       # d(FP/24h) above this counts as harm
+  cvar_alpha: 0.10                  # tail fraction for CVaR (worst 10%)

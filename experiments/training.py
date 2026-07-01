@@ -25,7 +25,7 @@ from torch.utils.data import ConcatDataset, DataLoader
 from augmentation.balanced_sampler import make_balanced_sampler
 from augmentation.class_weighting import make_loss, pos_weight_from_labels
 from augmentation.classical_aug import ClassicalAugment, ClassicalAugConfig
-from chbmit.datasets import ArrayDataset, WindowDataset, negative_sample
+from chbmit.datasets import ArrayDataset, WindowDataset, materialize_windows, negative_sample
 from chbmit.scarcity import apply_scarcity_to_windows, select_seizure_events
 from evaluation.event_metrics_szcore import (
     FilePrediction,
@@ -38,6 +38,21 @@ from evaluation.patient_metrics import aggregate_patient_metrics, per_patient_wi
 from evaluation.thresholds import select_threshold
 from evaluation.window_metrics import window_metrics
 from models import build_model, count_parameters
+from synthetic.trust_gate import (
+    GateAdmission,
+    TrustGateConfig,
+    fail_closed_decision,
+    run_admission,
+)
+
+UNGATED_SYNTHETIC = "ungated_synthetic_aug"
+GATED_SYNTHETIC = "trust_gated_synthetic_aug"
+SYNTHETIC_CONDITIONS = (UNGATED_SYNTHETIC, GATED_SYNTHETIC)
+
+
+def is_synthetic_condition(condition: str) -> bool:
+    """True for any condition that injects synthetic ictal windows (ungated or gated)."""
+    return condition in SYNTHETIC_CONDITIONS
 
 
 @dataclass
@@ -184,17 +199,66 @@ def _assemble_training(condition, train_table, store, cfg, seed, synthetic=None)
         aug = ClassicalAugment(ClassicalAugConfig(), seed=seed, ictal_only=True)
         return (_loader(train_table, store, cfg, shuffle=True, transform=aug,
                         transform_takes_label=True), make_loss("bce"))
-    if condition == "synthetic_aug":
+    if is_synthetic_condition(condition):
         if synthetic is None:
-            raise ValueError("synthetic_aug requires synthetic windows")
-        real_ds = WindowDataset(train_table, store, cfg.normalize_method, cfg.eps)
+            raise ValueError(f"{condition} requires synthetic windows")
         Xs, ys = synthetic
+        if len(Xs) == 0:  # nothing injected (e.g. gate admitted no windows) -> real-only
+            return _loader(train_table, store, cfg, shuffle=True), make_loss("bce")
+        real_ds = WindowDataset(train_table, store, cfg.normalize_method, cfg.eps)
         synth_ds = ArrayDataset(Xs, ys)
         ds = ConcatDataset([real_ds, synth_ds])
         loader = DataLoader(ds, batch_size=cfg.batch_size, shuffle=True,
                             num_workers=cfg.num_workers)
         return loader, make_loss("bce")
     raise ValueError(f"unknown condition: {condition}")
+
+
+def _train_eval(
+    spec, model, train_table, train_loader, loss_fn, val_windows, test_windows,
+    index_df, store, cfg, postproc, params, fa_budgets, n_synth_injected=0,
+):
+    """Train ``model``, select the threshold on validation event-F1, and evaluate test.
+
+    Shared by every condition. Returns ``(result_dict, selection, model)`` where
+    ``result_dict`` is the flattenable per-cell record.
+    """
+    monitor = _monitor_table(val_windows, cfg.monitor_max_neg_per_pos, spec.seed)
+    train_log = train_model(model, train_loader, monitor, store, loss_fn, cfg, seed=spec.seed)
+
+    # Threshold selection on validation event F1.
+    val_scores = infer_scores(model, val_windows, store, cfg)
+    val_preds = build_file_predictions(val_windows, val_scores, index_df)
+    sel = select_threshold(val_preds, postproc, params)
+
+    # Test evaluation on full timelines.
+    test_scores = infer_scores(model, test_windows, store, cfg)
+    test_preds = build_file_predictions(test_windows, test_scores, index_df)
+    event_res = evaluate_event_level(test_preds, sel.selected_threshold, postproc, params)
+    win_m = window_metrics(test_windows["label"].to_numpy(), test_scores, sel.selected_threshold)
+    patient_arrays = _patient_arrays(test_windows, test_scores)
+    patient_win = aggregate_patient_metrics(
+        per_patient_window_metrics(patient_arrays, sel.selected_threshold)
+    )
+    fa_sens = sensitivity_at_fa_budgets(test_preds, fa_budgets, postproc=postproc, params=params)
+
+    result = {
+        "spec": spec.__dict__,
+        "n_train_windows": int(len(train_table)),
+        "n_train_pos": int((train_table["label"] == 1).sum()),
+        "n_synth_injected": int(n_synth_injected),
+        "n_params": count_parameters(model),
+        "selected_threshold": sel.selected_threshold,
+        "threshold_selection": sel.as_dict(),
+        "train_log": {"best_val_auprc": train_log["best_val_auprc"],
+                       "best_epoch": train_log["best_epoch"]},
+        "window_metrics": win_m,
+        "event_metrics": event_res["aggregate"],
+        "event_metrics_per_patient": event_res["per_patient"],
+        "patient_window_metrics": patient_win,
+        "sensitivity_at_fa": {str(k): v for k, v in fa_sens.items()},
+    }
+    return result, sel, model
 
 
 def run_cell(
@@ -210,6 +274,10 @@ def run_cell(
     fa_budgets=(0.5, 1.0, 2.0),
     synthetic_provider: Optional[Callable] = None,
     model_kwargs: Optional[dict] = None,
+    return_model: bool = False,
+    teacher_model=None,
+    teacher_result: Optional[Dict[str, object]] = None,
+    gate_cfg: Optional[TrustGateConfig] = None,
 ) -> Dict[str, object]:
     cfg = cfg or TrainConfig()
     postproc = postproc or PostprocConfig()
@@ -235,15 +303,35 @@ def run_cell(
         exclude_seconds=cfg.exclude_seconds_around_seizure, seed=spec.seed,
     )
 
-    # Synthetic windows (training-only) if requested.
+    # Synthetic windows (training-only) if requested -- ungated injects directly; gated
+    # passes a larger candidate pool through the teacher's admission stage (v5.3 Sec 5).
     synthetic = None
-    if spec.condition == "synthetic_aug":
-        n_pos = int((train_table["label"] == 1).sum())
-        n_synth = max(1, int(round(spec.synthetic_ratio * n_pos)))
+    gate_info: Optional[dict] = None
+    n_pos = int((train_table["label"] == 1).sum())
+    n_synth = max(1, int(round(spec.synthetic_ratio * n_pos)))
+
+    if spec.condition == UNGATED_SYNTHETIC:
         if synthetic_provider is None:
-            raise ValueError("synthetic_aug requires a synthetic_provider")
+            raise ValueError(f"{UNGATED_SYNTHETIC} requires a synthetic_provider")
         Xs = synthetic_provider(n_synth, spec.seed)
         synthetic = (Xs, np.ones(len(Xs), dtype="int64"))
+
+    elif spec.condition == GATED_SYNTHETIC:
+        if synthetic_provider is None:
+            raise ValueError(f"{GATED_SYNTHETIC} requires a synthetic_provider")
+        if teacher_model is None:
+            raise ValueError(f"{GATED_SYNTHETIC} requires a teacher_model (real-only)")
+        gcfg = gate_cfg or TrustGateConfig()
+        pool = synthetic_provider(max(n_synth, gcfg.oversample * n_synth), spec.seed)
+        ictal_table = train_table[train_table["label"] == 1]
+        real_ictal, _ = (materialize_windows(ictal_table, store, cfg.normalize_method, cfg.eps)
+                         if len(ictal_table) else (None, None))
+        adm: GateAdmission = run_admission(
+            teacher_model, pool, real_ictal, gcfg, target_count=n_synth, device=cfg.device,
+        )
+        admitted = np.asarray(pool)[adm.admitted_index] if adm.n_admitted else np.asarray(pool)[:0]
+        synthetic = (admitted, np.ones(len(admitted), dtype="int64"))
+        gate_info = {"cfg": gcfg, "admission": adm, "n_synth_target": n_synth}
 
     win_samples = int(windows_df["end_sample"].iloc[0] - windows_df["start_sample"].iloc[0])
     model = build_model(spec.detector, n_channels=index_df_n_channels(store),
@@ -252,40 +340,71 @@ def run_cell(
     train_loader, loss_fn = _assemble_training(
         spec.condition, train_table, store, cfg, spec.seed, synthetic
     )
-    monitor = _monitor_table(val_windows, cfg.monitor_max_neg_per_pos, spec.seed)
-    train_log = train_model(model, train_loader, monitor, store, loss_fn, cfg, seed=spec.seed)
-
-    # Threshold selection on validation event F1.
-    val_scores = infer_scores(model, val_windows, store, cfg)
-    val_preds = build_file_predictions(val_windows, val_scores, index_df)
-    sel = select_threshold(val_preds, postproc, params)
-
-    # Test evaluation on full timelines.
-    test_scores = infer_scores(model, test_windows, store, cfg)
-    test_preds = build_file_predictions(test_windows, test_scores, index_df)
-    event_res = evaluate_event_level(test_preds, sel.selected_threshold, postproc, params)
-    win_m = window_metrics(test_windows["label"].to_numpy(), test_scores, sel.selected_threshold)
-    patient_arrays = _patient_arrays(test_windows, test_scores)
-    patient_win = aggregate_patient_metrics(
-        per_patient_window_metrics(patient_arrays, sel.selected_threshold)
+    n_injected = int(len(synthetic[0])) if synthetic is not None else 0
+    result, sel, model = _train_eval(
+        spec, model, train_table, train_loader, loss_fn, val_windows, test_windows,
+        index_df, store, cfg, postproc, params, fa_budgets, n_synth_injected=n_injected,
     )
-    fa_sens = sensitivity_at_fa_budgets(test_preds, fa_budgets, postproc=postproc, params=params)
 
-    return {
-        "spec": spec.__dict__,
-        "n_train_windows": int(len(train_table)),
-        "n_train_pos": int((train_table["label"] == 1).sum()),
-        "n_params": count_parameters(model),
-        "selected_threshold": sel.selected_threshold,
-        "threshold_selection": sel.as_dict(),
-        "train_log": {"best_val_auprc": train_log["best_val_auprc"],
-                       "best_epoch": train_log["best_epoch"]},
-        "window_metrics": win_m,
-        "event_metrics": event_res["aggregate"],
-        "event_metrics_per_patient": event_res["per_patient"],
-        "patient_window_metrics": patient_win,
-        "sensitivity_at_fa": {str(k): v for k, v in fa_sens.items()},
+    # Fail-closed event-level selection for the gated condition (v5.3 Sec 5.2).
+    if spec.condition == GATED_SYNTHETIC and gate_info is not None:
+        result = _apply_fail_closed(result, sel, spec, gate_info, teacher_result)
+
+    if return_model:
+        result["model"] = model
+    return result
+
+
+def _apply_fail_closed(gated_result, gated_sel, spec, gate_info, teacher_result):
+    """Compare gated vs real-only on validation event-F1 / FP-24h and revert if it fails."""
+    gcfg: TrustGateConfig = gate_info["cfg"]
+    adm: GateAdmission = gate_info["admission"]
+    teacher_sel = (teacher_result or {}).get("threshold_selection", {})
+    teacher_val_f1 = float(teacher_sel.get("validation_event_f1", float("nan")))
+    teacher_val_fp = float(teacher_sel.get("validation_fp_per_24h", float("nan")))
+    gated_val_f1 = float(gated_sel.validation_event_f1)
+    gated_val_fp = float(gated_sel.validation_fp_per_24h)
+
+    decision = fail_closed_decision(
+        gated_val_f1, gated_val_fp, teacher_val_f1, teacher_val_fp, gcfg,
+        n_admitted=adm.n_admitted,
+    )
+    gate = {
+        "q": gcfg.q,
+        "oversample": gcfg.oversample,
+        "n_pool": adm.n_pool,
+        "n_admitted": adm.n_admitted,
+        "n_injected": adm.n_injected,
+        "admission_rate": adm.admission_rate,
+        "admission_threshold": adm.threshold,
+        "n_synth_target": gate_info["n_synth_target"],
+        "teacher_val_event_f1": teacher_val_f1,
+        "teacher_val_fp_per_24h": teacher_val_fp,
+        "gated_val_event_f1": gated_val_f1,
+        "gated_val_fp_per_24h": gated_val_fp,
+        "delta_val_event_f1": gated_val_f1 - teacher_val_f1,
+        "admit_margin_event_f1": gcfg.admit_margin_event_f1,
+        "fp24h_safety_slack": gcfg.fp24h_safety_slack,
+        "admitted": decision.admitted,
+        "reverted": decision.reverted,
+        "reason": decision.reason,
     }
+
+    if decision.reverted and teacher_result is not None:
+        # Fail closed: report the real-only model's TEST metrics under the gated spec.
+        reverted = copy.deepcopy({k: v for k, v in teacher_result.items() if k != "model"})
+        reverted["spec"] = spec.__dict__
+        reverted["gated_model_metrics"] = {
+            "event_metrics": gated_result["event_metrics"],
+            "window_metrics": gated_result["window_metrics"],
+        }
+        reverted["gate"] = gate
+        reverted["reverted_to_real_only"] = True
+        return reverted
+
+    gated_result["gate"] = gate
+    gated_result["reverted_to_real_only"] = False
+    return gated_result
 
 
 def _patient_arrays(test_windows, test_scores):

@@ -1,9 +1,10 @@
 """Tier C: Siena cross-dataset verification (plan Section 18).
 
 Re-runs the core comparison on Siena (reduced): 1 seed, scarcity 1.0 and 0.25,
-conditions real_only / classical_aug / synthetic_aug, detectors EEGNet + LCT +
-TCN, generator = the in-house generator that performed best on CHB-MIT. Goal:
-show the CHB-MIT trend is not dataset-specific. Verification, not a full grid.
+conditions real_only / classical_aug / ungated_synthetic_aug /
+trust_gated_synthetic_aug, detectors EEGNet + LCT + TCN, generator = the in-house
+generator that performed best on CHB-MIT. Goal (v5.3 Q5): test whether the
+harm/mitigation pattern reproduces or is CHB-MIT-specific. Verification, not a full grid.
 
 Uses the Siena manifest adapter so the identical pipeline runs unchanged.
 """
@@ -54,7 +55,8 @@ def main(argv=None):
 
     grid = GridSpec(
         detectors=cfg.get("detectors.required", ["eegnet", "lct", "tcn"]),
-        conditions=["real_only", "classical_aug", "synthetic_aug"],
+        conditions=["real_only", "classical_aug", "ungated_synthetic_aug",
+                    "trust_gated_synthetic_aug"],
         scarcity_fractions=[1.0, 0.25],
         seeds=[cfg.get("seeds.dev", [42])[0]],
         generators=[args.generator],

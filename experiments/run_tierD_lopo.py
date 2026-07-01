@@ -2,8 +2,9 @@
 
 LOPO is balanced_group_kfold with n_folds = number of groups, so each patient
 group is the test set exactly once. 1 seed; EEGNet + LCT + TCN; scarcity 1.0 and
-0.25; conditions real_only, classical_aug, synthetic_aug with the best in-house
-generator. Goal: show the main trend survives the stricter LOPO protocol.
+0.25; conditions real_only, classical_aug, ungated_synthetic_aug,
+trust_gated_synthetic_aug with the best in-house generator. Goal: show the main
+harm/mitigation trend survives the stricter LOPO protocol.
 """
 from __future__ import annotations
 
@@ -54,7 +55,8 @@ def main(argv=None):
 
     grid = GridSpec(
         detectors=cfg.get("detectors.required", ["eegnet", "lct", "tcn"]),
-        conditions=["real_only", "classical_aug", "synthetic_aug"],
+        conditions=["real_only", "classical_aug", "ungated_synthetic_aug",
+                    "trust_gated_synthetic_aug"],
         scarcity_fractions=[1.0, 0.25],
         seeds=[cfg.get("seeds.dev", [42])[0]],
         generators=[args.generator],

@@ -1,11 +1,13 @@
-"""Tier B: core conference experiment (plan Section 18).
+"""Tier B: core conference experiment (v5.3 Sec 5.4 trimmed core grid).
 
 5 balanced patient-group folds x 3 seeds; detectors EEGNet + LCT + TCN; scarcity
-1.0 / 0.5 / 0.25; conditions real_only, class_weighted, balanced_sampler,
-classical_aug, synthetic_aug; generators WGAN-GP and cVAE at synthetic ratio 1.0;
-window + SzCORE event + patient metrics with paired deltas per generator x
-detector cell. CLI flags allow running subsets (this machine is CPU-only; the
-full grid is intended for a GPU/cloud box).
+1.0 / 0.5 / 0.25; conditions real_only, class_weighted, classical_aug,
+ungated_synthetic_aug, trust_gated_synthetic_aug; core generator cVAE at synthetic
+ratio 1.0 (WGAN-GP is an appendix axis). The gated condition reuses the real_only
+detector as its teacher and fails closed on validation event-F1 / FP-24h. Window +
+SzCORE event + patient metrics with paired deltas and tail-risk per generator x
+detector cell. CLI flags allow running subsets (this machine is CPU-only; the full
+grid is intended for a GPU/cloud box).
 """
 from __future__ import annotations
 
@@ -21,6 +23,7 @@ from experiments.grid import GridSpec, run_grid
 from experiments.prepare import prepare_dataset
 from experiments.training import TrainConfig
 from synthetic.cvae_provider import CVAEConfig
+from synthetic.trust_gate import TrustGateConfig
 from synthetic.wgan_gp_provider import WGANConfig
 
 
@@ -69,10 +72,17 @@ def main(argv=None):
         conditions=cfg.get("augmentation.core_methods"),
         scarcity_fractions=args.scarcity or cfg.get("scarcity.fractions", [1.0, 0.5, 0.25]),
         seeds=args.seeds or cfg.get("seeds.core", [42, 123, 2024]),
-        generators=args.generators or cfg.get("generators.in_house", ["wgan_gp", "cvae"]),
+        generators=args.generators or cfg.get("generators.core", ["cvae"]),
         synthetic_ratio=cfg.get("generators.core_synthetic_ratios", [1.0])[0],
         folds=args.folds,
         do_quality=not args.no_quality,
+    )
+    gate_cfg = TrustGateConfig(
+        q=cfg.get("trust_gate.q_core", 0.90),
+        oversample=cfg.get("trust_gate.oversample", 6),
+        admit_margin_event_f1=cfg.get("trust_gate.admit_margin_event_f1", 0.0),
+        fp24h_safety_slack=cfg.get("trust_gate.fp24h_safety_slack", 0.25),
+        min_admitted=cfg.get("trust_gate.min_admitted", 1),
     )
     train_cfg = TrainConfig(
         epochs=args.epochs,
@@ -89,7 +99,7 @@ def main(argv=None):
     }
 
     out = run_grid(prepared, grid, train_cfg=train_cfg, gen_configs=gen_configs,
-                   results_dir=results_dir)
+                   results_dir=results_dir, gate_cfg=gate_cfg)
     save_results(out["results"], results_dir / "tables", "tierB_core")
     if out["quality"]:
         (results_dir / "tables").mkdir(parents=True, exist_ok=True)

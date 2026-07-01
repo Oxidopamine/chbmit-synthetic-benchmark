@@ -13,6 +13,7 @@ def flatten_cell_result(res: Dict) -> Dict:
     wm = res.get("window_metrics", {})
     em = res.get("event_metrics", {})
     fa = res.get("sensitivity_at_fa", {})
+    gate = res.get("gate", {})
     row = {
         "fold": spec.get("fold"),
         "seed": spec.get("seed"),
@@ -40,6 +41,18 @@ def flatten_cell_result(res: Dict) -> Dict:
         "pooled_sensitivity": em.get("pooled_sensitivity"),
         "median_latency_seconds": em.get("median_latency_seconds"),
         "n_patients": em.get("n_patients"),
+        "n_synth_injected": res.get("n_synth_injected"),
+        # trust gate (only populated for trust_gated_synthetic_aug cells)
+        "gate_q": gate.get("q"),
+        "gate_n_admitted": gate.get("n_admitted"),
+        "gate_n_pool": gate.get("n_pool"),
+        "gate_admission_rate": gate.get("admission_rate"),
+        "gate_admitted": gate.get("admitted"),
+        "gate_reverted": gate.get("reverted"),
+        "gate_reason": gate.get("reason"),
+        "gate_delta_val_event_f1": gate.get("delta_val_event_f1"),
+        "reverted_to_real_only": res.get("reverted_to_real_only"),
+        "skipped": res.get("skipped", False),
     }
     for budget, val in fa.items():
         row[f"sens_at_fa_{budget}"] = val

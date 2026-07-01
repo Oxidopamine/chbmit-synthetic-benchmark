@@ -40,7 +40,7 @@ def prepared(tmp_path_factory):
 def test_grid_then_analyze(prepared, tmp_path):
     grid = GridSpec(
         detectors=["eegnet"],
-        conditions=["real_only", "classical_aug", "synthetic_aug"],
+        conditions=["real_only", "classical_aug", "ungated_synthetic_aug"],
         scarcity_fractions=[1.0],
         seeds=[42],
         generators=["cvae"],
@@ -52,9 +52,9 @@ def test_grid_then_analyze(prepared, tmp_path):
     out = run_grid(prepared, grid, train_cfg=train_cfg, gen_configs=gen_cfgs,
                    results_dir=tmp_path, log=lambda *a, **k: None)
     results = out["results"]
-    # 2 folds x (real_only, classical_aug, synthetic_aug/cvae) = 6 cells
+    # 2 folds x (real_only, classical_aug, ungated_synthetic_aug/cvae) = 6 cells
     assert len(results) == 6
-    assert any(r["spec"]["condition"] == "synthetic_aug" for r in results)
+    assert any(r["spec"]["condition"] == "ungated_synthetic_aug" for r in results)
     assert len(out["quality"]) >= 1  # quality ran per fitted generator
 
     csv = save_results(results, tmp_path / "tables", "grid")

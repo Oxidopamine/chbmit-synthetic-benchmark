@@ -1,4 +1,4 @@
-"""Generator/provider tests: fit/generate/provenance/save-load + synthetic_aug cell."""
+"""Generator/provider tests: fit/generate/provenance/save-load + ungated_synthetic_aug cell."""
 import numpy as np
 import pytest
 
@@ -87,7 +87,7 @@ def test_precomputed_provenance_enforced(tmp_path):
         PrecomputedProvider().load_npz(bad)
 
 
-# --- integration: synthetic_aug cell -----------------------------------
+# --- integration: ungated_synthetic_aug cell ---------------------------
 def test_synthetic_aug_cell(tmp_path_factory):
     from chbmit.preprocess_edf import PreprocessConfig
     from chbmit.window_metadata import WindowingConfig
@@ -124,7 +124,7 @@ def test_synthetic_aug_cell(tmp_path_factory):
     assert info["fitted"] and not info["skipped"]
 
     spec = CellSpec(fold=0, seed=42, scarcity_fraction=1.0, detector="eegnet",
-                    condition="synthetic_aug", generator="cvae", synthetic_ratio=1.0)
+                    condition="ungated_synthetic_aug", generator="cvae", synthetic_ratio=1.0)
     out = run_cell(spec, prepared.index_df, prepared.windows_df, prepared.events_df,
                    prepared.store, prepared.splits[0],
                    cfg=TrainConfig(epochs=2, batch_size=32, monitor_max_neg_per_pos=10),

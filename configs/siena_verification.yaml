@@ -36,7 +36,21 @@ generators:
   core_synthetic_ratios: [1.0]
 
 augmentation:
-  core_methods: [real_only, classical_aug, synthetic_aug]
+  core_methods: [real_only, classical_aug, ungated_synthetic_aug, trust_gated_synthetic_aug]
+
+trust_gate:
+  teacher: real_only_model
+  q_core: 0.90
+  oversample: 6
+  admit_margin_event_f1: 0.0
+  fp24h_safety_slack: 0.25
+  min_admitted: 1
+
+harm:
+  references: [real_only, classical_aug]
+  delta_event_f1_threshold: -0.01
+  delta_fp24h_threshold: 0.25
+  cvar_alpha: 0.10
 
 classifier_training:
   batch_size: 64
