@@ -32,7 +32,16 @@ def main():
     ap.add_argument("--epochs", type=int, default=40)
     ap.add_argument("--detectors", nargs="*", default=TIER_A_DETECTORS)
     ap.add_argument("--reuse-processed", action="store_true")
+    ap.add_argument("--device", default="auto",
+                    help="'auto' (cuda if available), 'cuda', or 'cpu'")
+    ap.add_argument("--num-workers", type=int, default=8,
+                    help="DataLoader worker processes (hides zarr read latency)")
     args = ap.parse_args()
+
+    if args.device == "auto":
+        import torch
+        args.device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[Tier A] using device={args.device}")
 
     cfg = load_config(args.config)
     raw_root = args.raw_root or cfg.resolve_path("paths.raw_chbmit")
@@ -67,6 +76,8 @@ def main():
         early_stopping_patience=cfg.get("classifier_training.early_stopping_patience", 12),
         background_to_seizure_ratio=cfg.get("negative_sampling.background_to_seizure_ratio", 5),
         exclude_seconds_around_seizure=cfg.get("negative_sampling.exclude_seconds_around_seizure", 60),
+        device=args.device,
+        num_workers=args.num_workers,
     )
 
     results = []

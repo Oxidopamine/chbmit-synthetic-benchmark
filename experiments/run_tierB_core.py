@@ -44,11 +44,19 @@ def build_arg_parser():
     ap.add_argument("--min-ictal", type=int, default=256)
     ap.add_argument("--no-quality", action="store_true")
     ap.add_argument("--reuse-processed", action="store_true")
+    ap.add_argument("--device", default="auto",
+                    help="'auto' (cuda if available), 'cuda', or 'cpu'")
+    ap.add_argument("--num-workers", type=int, default=8,
+                    help="DataLoader worker processes (hides zarr read latency)")
     return ap
 
 
 def main(argv=None):
     args = build_arg_parser().parse_args(argv)
+    if args.device == "auto":
+        import torch
+        args.device = "cuda" if torch.cuda.is_available() else "cpu"
+    print(f"[Tier B] using device={args.device} num_workers={args.num_workers}")
     cfg = load_config(args.config)
     raw_root = args.raw_root or cfg.resolve_path("paths.raw_chbmit")
     processed_dir = args.processed_dir or cfg.resolve_path("paths.processed_chbmit")
@@ -92,10 +100,14 @@ def main(argv=None):
         early_stopping_patience=cfg.get("classifier_training.early_stopping_patience", 12),
         background_to_seizure_ratio=cfg.get("negative_sampling.background_to_seizure_ratio", 5),
         exclude_seconds_around_seizure=cfg.get("negative_sampling.exclude_seconds_around_seizure", 60),
+        device=args.device,
+        num_workers=args.num_workers,
     )
     gen_configs = {
-        "wgan_gp": WGANConfig(epochs=args.gen_epochs, min_ictal_windows=args.min_ictal),
-        "cvae": CVAEConfig(epochs=max(100, args.gen_epochs // 2), min_ictal_windows=args.min_ictal),
+        "wgan_gp": WGANConfig(epochs=args.gen_epochs, min_ictal_windows=args.min_ictal,
+                              device=args.device),
+        "cvae": CVAEConfig(epochs=max(100, args.gen_epochs // 2), min_ictal_windows=args.min_ictal,
+                           device=args.device),
     }
 
     out = run_grid(prepared, grid, train_cfg=train_cfg, gen_configs=gen_configs,

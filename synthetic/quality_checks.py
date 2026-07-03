@@ -70,15 +70,20 @@ def mmd_rbf(A: np.ndarray, B: np.ndarray, gamma: Optional[float] = None) -> floa
 def nearest_neighbor_memorization(synth: np.ndarray, real_train: np.ndarray,
                                   max_pairs: int = 2000) -> Dict[str, float]:
     """Distance from each synthetic window to its closest REAL TRAINING window."""
-    s = synth.reshape(len(synth), -1)
-    r = real_train.reshape(len(real_train), -1)
+    s = synth.reshape(len(synth), -1).astype("float64")
+    r = real_train.reshape(len(real_train), -1).astype("float64")
     if len(s) > max_pairs:
         s = s[np.random.default_rng(0).choice(len(s), max_pairs, replace=False)]
-    # Chunked nearest-neighbour to bound memory.
+    # Chunked exact-Euclidean nearest neighbour via ||s-r||^2 = |s|^2 + |r|^2 - 2 s.r^T.
+    # Only forms (chunk, n_real) matrices, never the (chunk, n_real, D) broadcast that
+    # would blow up memory for high-dimensional (C*T) windows.
+    r_sq = np.einsum("ij,ij->i", r, r)
     mins = []
     for i in range(0, len(s), 256):
-        d = np.linalg.norm(s[i:i + 256, None, :] - r[None, :, :], axis=-1)
-        mins.append(d.min(axis=1))
+        sc = s[i:i + 256]
+        d2 = np.einsum("ij,ij->i", sc, sc)[:, None] + r_sq[None, :] - 2.0 * (sc @ r.T)
+        np.maximum(d2, 0.0, out=d2)
+        mins.append(np.sqrt(d2.min(axis=1)))
     mins = np.concatenate(mins)
     return {"nn_dist_mean": float(mins.mean()), "nn_dist_min": float(mins.min()),
             "nn_dist_p05": float(np.percentile(mins, 5))}
