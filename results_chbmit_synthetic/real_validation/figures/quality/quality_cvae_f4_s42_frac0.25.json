@@ -1,0 +1,12 @@
+{
+  "provider": "cvae_f4_s42_frac0.25",
+  "n_real": 555,
+  "n_synth": 500,
+  "psd_log_distance": 8.712104797363281,
+  "cross_channel_corr_frobenius": 4.04086869528022,
+  "mmd_psd": 1.3301984974509122,
+  "discriminator_auc": 1.0,
+  "nn_dist_mean": 134.60769209639216,
+  "nn_dist_min": 134.26469649854587,
+  "nn_dist_p05": 134.4087516992948
+}

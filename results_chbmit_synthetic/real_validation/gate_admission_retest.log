@@ -1,0 +1,41 @@
+[   65s] teacher train set: (15048, 18, 1024), pos=2508
+/workspace/chbmit-synthetic-benchmark/scripts/gate_admission_retest.py:119: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:835.)
+  tot += float(loss) * len(idx)
+[   67s]   teacher ep  0 bce=0.4659
+[   76s]   teacher ep 15 bce=0.1694
+[   86s]   teacher ep 30 bce=0.1496
+[   95s]   teacher ep 45 bce=0.1382
+[  105s]   teacher ep 59 bce=0.1291
+[  105s] teacher trained; train ictal mean score=0.851 vs bg 0.049
+[  122s] wgan pools ready (15048)
+[  339s] cvae pool ready
+
+=== teacher seizure-confidence distributions ===
+REAL ictal (ref)       n= 2508  mean=0.851  med=0.961  p90=0.999  p99=1.000  max=1.000
+cvae_b0.01             n=15048  mean=0.478  med=0.467  p90=0.846  p99=0.965  max=0.996
+wgan_raw               n=15048  mean=0.666  med=0.792  p90=0.987  p99=0.999  max=1.000
+wgan_bandlimited       n=15048  mean=0.775  med=0.855  p90=0.977  p99=0.995  max=1.000
+
+=== ADMISSION RE-TEST SUMMARY (fold 0, eegnet teacher, q=0.90) ===
+       generator  n_pool  admission_threshold_q90_real  n_admitted  admission_rate  synth_score_mean  synth_score_p99
+      cvae_b0.01   15048                        0.9985           0          0.0000            0.4778           0.9654
+        wgan_raw   15048                        0.9985         167          0.0111            0.6660           0.9986
+wgan_bandlimited   15048                        0.9985          15          0.0010            0.7746           0.9949
+
+=== ADMISSION-vs-q SWEEP (fraction of pool admitted) ===
+   q  threshold  cvae_b0.01  wgan_raw  wgan_bandlimited
+0.50     0.9612      0.0122    0.2184            0.1742
+0.75     0.9921      0.0003    0.0657            0.0216
+0.90     0.9985      0.0000    0.0111            0.0010
+0.95     0.9994      0.0000    0.0027            0.0001
+0.99     1.0000      0.0000    0.0000            0.0000
+{
+  "teacher_train_ictal_score_mean": 0.8507,
+  "teacher_train_bg_score_mean": 0.0486,
+  "q_preregistered": 0.9,
+  "oversample": 6,
+  "admission_threshold_q90": 0.9985
+}
+
+[  341s] wrote results_chbmit_synthetic/real_validation/analysis_tierB/gate_admission_retest.csv, results_chbmit_synthetic/real_validation/analysis_tierB/gate_admission_qsweep.csv, figures/gate_admission.png

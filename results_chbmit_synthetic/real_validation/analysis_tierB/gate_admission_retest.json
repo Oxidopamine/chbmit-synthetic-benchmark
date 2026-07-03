@@ -1,0 +1,7 @@
+{
+  "teacher_train_ictal_score_mean": 0.8507,
+  "teacher_train_bg_score_mean": 0.0486,
+  "q_preregistered": 0.9,
+  "oversample": 6,
+  "admission_threshold_q90": 0.9985
+}

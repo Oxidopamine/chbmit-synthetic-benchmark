@@ -1,0 +1,4 @@
+generator,n_pool,admission_threshold_q90_real,n_admitted,admission_rate,synth_score_mean,synth_score_p99
+cvae_b0.01,15048,0.9985,0,0.0,0.4778,0.9654
+wgan_raw,15048,0.9985,167,0.0111,0.666,0.9986
+wgan_bandlimited,15048,0.9985,15,0.001,0.7746,0.9949

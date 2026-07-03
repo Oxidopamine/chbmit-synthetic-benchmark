@@ -1,0 +1,18 @@
+[beta=1.0   ] discAUC=1.000  mmd=1.335  synth_div=0.20  div_ratio=0.001
+[beta=0.5   ] discAUC=1.000  mmd=1.334  synth_div=0.20  div_ratio=0.001
+[beta=0.1   ] discAUC=1.000  mmd=1.174  synth_div=116.42  div_ratio=0.606
+[beta=0.01  ] discAUC=1.000  mmd=1.173  synth_div=126.43  div_ratio=0.659
+[beta=0.001 ] discAUC=1.000  mmd=1.191  synth_div=85.62  div_ratio=0.446
+[beta=0.0   ] discAUC=1.000  mmd=1.246  synth_div=28.84  div_ratio=0.150
+
+=== SUMMARY (real_diversity ~192) ===
+ beta  fit_sec  discriminator_auc  mmd_psd  synth_diversity  diversity_ratio
+1.000     52.4                1.0    1.335             0.20            0.001
+0.500     50.9                1.0    1.334             0.20            0.001
+0.100     51.8                1.0    1.174           116.42            0.606
+0.010     51.5                1.0    1.173           126.43            0.659
+0.001     51.3                1.0    1.191            85.62            0.446
+0.000     51.4                1.0    1.246            28.84            0.150
+
+wrote results_chbmit_synthetic/real_validation/analysis_tierB/generator_beta_sweep.csv
+EXIT=0

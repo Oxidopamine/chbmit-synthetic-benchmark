@@ -1,0 +1,16 @@
+[   100s] prefetched train (15048 win); cache=15048
+[   139s] prefetched val (405048 win); cache=420096
+[   160s] prefetched test (227358 win); cache=647454
+[   253s] eegnet real_only  F1=0.5154371584699453
+[   334s] eegnet ungated    F1=0.43736263736263736
+[   432s] eegnet gated q=0.9 F1=0.5154371584699453 admit=0.0009303561935140882 reverted=True
+[   528s] eegnet gated q=0.5 F1=0.5154371584699453 admit=0.16666666666666666 reverted=True
+
+=== DOWNSTREAM GATED (band-limited WGAN, fold 0) ===
+detector condition   q  event_f1  event_sensitivity  event_precision  fp_per_24h reverted_to_real_only  gate_admission_rate  gate_n_admitted               gate_reason
+  eegnet real_only NaN  0.515437           0.625000         0.482843    9.457120                  None                  NaN              NaN                       NaN
+  eegnet   ungated NaN  0.437363           0.575926         0.389286    4.421856                  None                  NaN              NaN                       NaN
+  eegnet     gated 0.9  0.515437           0.625000         0.482843    9.457120                  True             0.000930             14.0 val_event_f1_below_margin
+  eegnet     gated 0.5  0.515437           0.625000         0.482843    9.457120                  True             0.166667           2508.0 val_event_f1_below_margin
+
+[   528s] wrote results_chbmit_synthetic/real_validation/analysis_tierB/downstream_gated_bandlimited_smoke.csv

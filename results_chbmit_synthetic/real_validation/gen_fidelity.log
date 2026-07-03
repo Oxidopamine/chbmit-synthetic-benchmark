@@ -1,0 +1,14 @@
+[ep= 150]    18s  discAUC=1.000  mmd=1.324  nn=135.3  div_ratio=0.002
+[ep= 400]    42s  discAUC=1.000  mmd=1.334  nn=135.3  div_ratio=0.001
+[ep= 800]    83s  discAUC=1.000  mmd=1.337  nn=135.3  div_ratio=0.001
+[ep=1500]   154s  discAUC=1.000  mmd=1.338  nn=135.3  div_ratio=0.001
+
+=== SUMMARY ===
+ epochs  fit_sec  n_real  discriminator_auc  mmd_psd  nn_dist_mean  real_diversity  synth_diversity  diversity_ratio
+    150     18.0    2508                1.0    1.324        135.33          191.97             0.38            0.002
+    400     41.9    2508                1.0    1.334        135.33          191.97             0.20            0.001
+    800     82.8    2508                1.0    1.337        135.33          191.97             0.14            0.001
+   1500    154.4    2508                1.0    1.338        135.32          191.97             0.10            0.001
+
+wrote results_chbmit_synthetic/real_validation/analysis_tierB/generator_fidelity_sweep.csv
+EXIT=0

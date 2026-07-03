@@ -1,0 +1,36 @@
+[Tier A] using device=cuda
+[Tier A] fold=0 eegnet real_only
+[Tier A] fold=0 eegnet class_weighted
+[Tier A] fold=0 eegnet classical_aug
+[Tier A] fold=0 lct real_only
+[Tier A] fold=0 lct class_weighted
+[Tier A] fold=0 lct classical_aug
+[Tier A] fold=1 eegnet real_only
+[Tier A] fold=1 eegnet class_weighted
+[Tier A] fold=1 eegnet classical_aug
+[Tier A] fold=1 lct real_only
+[Tier A] fold=1 lct class_weighted
+[Tier A] fold=1 lct classical_aug
+[Tier A] fold=2 eegnet real_only
+[Tier A] fold=2 eegnet class_weighted
+[Tier A] fold=2 eegnet classical_aug
+[Tier A] fold=2 lct real_only
+[Tier A] fold=2 lct class_weighted
+[Tier A] fold=2 lct classical_aug
+[Tier A] fold=3 eegnet real_only
+[Tier A] fold=3 eegnet class_weighted
+[Tier A] fold=3 eegnet classical_aug
+[Tier A] fold=3 lct real_only
+[Tier A] fold=3 lct class_weighted
+[Tier A] fold=3 lct classical_aug
+[Tier A] fold=4 eegnet real_only
+[Tier A] fold=4 eegnet class_weighted
+[Tier A] fold=4 eegnet classical_aug
+[Tier A] fold=4 lct real_only
+[Tier A] fold=4 lct class_weighted
+[Tier A] fold=4 lct classical_aug
+wrote results_chbmit_synthetic/real_validation/tables/tierA_dev.csv
+{
+  "n_cells": 30
+}
+TIERA_EXIT=0

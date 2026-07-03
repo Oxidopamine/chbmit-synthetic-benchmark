@@ -1,0 +1,12 @@
+[   103s] prefetched train (15048 win); cache=15048
+[   142s] prefetched val (405048 win); cache=420096
+[   168s] prefetched test (227358 win); cache=647454
+[   342s] eegnet real_only  F1=0.3797348484848485
+[   843s] eegnet ungated    F1=0.2563146997929607
+[  1273s] eegnet gated q=0.9 F1=0.3797348484848485 admit=0.0016613503455608718 reverted=True
+[  1614s] eegnet gated q=0.5 F1=0.3797348484848485 admit=0.16666666666666666 reverted=True
+[  1905s] lct real_only  F1=0.13008495932032543
+[  2142s] lct ungated    F1=0.09201319605182642
+[  2425s] lct gated q=0.9 F1=0.13008495932032543 admit=0.013423710792131845 reverted=True
+[  2714s] lct gated q=0.5 F1=0.13008495932032543 admit=0.16666666666666666 reverted=True
+[  3054s] tcn real_only  F1=0.17401960784313725

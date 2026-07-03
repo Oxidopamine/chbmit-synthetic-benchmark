@@ -1,0 +1,22 @@
+[   92s] real ready n=2508 shape=(2508, 18, 1024)
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:829: UserWarning: Attempting to run cuBLAS, but there was no current CUDA context! Attempting to set the primary context... (Triggered internally at /pytorch/aten/src/ATen/cuda/CublasHandlePool.cpp:179.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[ 1183s] wgan trained+saved
+[ 1408s] cvae trained
+
+[ 1453s] === SPECTRAL GAP SUMMARY ===
+{
+  "fs": 256,
+  "n_synth": 500,
+  "wgan_full_discAUC": 1.0,
+  "wgan_inband_discAUC": 1.0,
+  "cvae_full_discAUC": 1.0,
+  "cvae_inband_discAUC": 1.0,
+  "wgan_outband_frac_power": 0.0072,
+  "cvae_outband_frac_power": 0.0049,
+  "real_outband_frac_power": 0.0022,
+  "wgan_gap_inband_mean": 0.157,
+  "wgan_gap_outband_mean": 12.439,
+  "cvae_gap_inband_mean": 2.661
+}
+wrote results_chbmit_synthetic/real_validation/analysis_tierB/spectral_gap.json, .npz, and results_chbmit_synthetic/real_validation/analysis_tierB/figures/spectral_gap.png

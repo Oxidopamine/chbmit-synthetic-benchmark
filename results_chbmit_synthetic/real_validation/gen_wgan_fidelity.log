@@ -1,0 +1,18 @@
+n_real=2508  shape=(2508, 18, 1024)  real_diversity=191.97
+/usr/local/lib/python3.12/dist-packages/torch/autograd/graph.py:829: UserWarning: Attempting to run cuBLAS, but there was no current CUDA context! Attempting to set the primary context... (Triggered internally at /pytorch/aten/src/ATen/cuda/CublasHandlePool.cpp:179.)
+  return Variable._execution_engine.run_backward(  # Calls into the C++ engine to run the backward pass
+[ep=  50]    143s  discAUC=1.000  mmd=1.203  nn=178.9  div_ratio=1.003
+[ep= 150]    409s  discAUC=1.000  mmd=1.174  nn=179.2  div_ratio=0.969
+[ep= 300]    799s  discAUC=1.000  mmd=1.163  nn=179.9  div_ratio=0.939
+[ep= 450]   1188s  discAUC=1.000  mmd=1.149  nn=179.7  div_ratio=0.936
+[ep= 600]   1577s  discAUC=1.000  mmd=1.139  nn=179.9  div_ratio=0.936
+
+=== SUMMARY (WGAN-GP, single checkpointed run) ===
+ epochs  elapsed_sec  n_real  discriminator_auc  mmd_psd  nn_dist_mean  real_diversity  synth_diversity  diversity_ratio
+     50        142.8    2508                1.0    1.203        178.92          191.97           192.54            1.003
+    150        409.1    2508                1.0    1.174        179.22          191.97           186.07            0.969
+    300        798.9    2508                1.0    1.163        179.91          191.97           180.33            0.939
+    450       1187.8    2508                1.0    1.149        179.69          191.97           179.63            0.936
+    600       1577.4    2508                1.0    1.139        179.89          191.97           179.65            0.936
+
+wrote results_chbmit_synthetic/real_validation/analysis_tierB/generator_wgan_fidelity_sweep.csv

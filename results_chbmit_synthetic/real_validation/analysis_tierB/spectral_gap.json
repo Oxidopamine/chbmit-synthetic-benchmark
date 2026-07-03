@@ -1,0 +1,14 @@
+{
+  "fs": 256,
+  "n_synth": 500,
+  "wgan_full_discAUC": 1.0,
+  "wgan_inband_discAUC": 1.0,
+  "cvae_full_discAUC": 1.0,
+  "cvae_inband_discAUC": 1.0,
+  "wgan_outband_frac_power": 0.0072,
+  "cvae_outband_frac_power": 0.0049,
+  "real_outband_frac_power": 0.0022,
+  "wgan_gap_inband_mean": 0.157,
+  "wgan_gap_outband_mean": 12.439,
+  "cvae_gap_inband_mean": 2.661
+}
