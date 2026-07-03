@@ -48,22 +48,28 @@ def _cache_key(store_path: str, file_id, start: int, end: int):
 
 
 def read_window(store_path: str, file_id: str, start: int, end: int) -> np.ndarray:
-    """Read a single ``(C, T)`` window slice from the zarr store (cache-aware)."""
+    """Read a single ``(C, T)`` window slice from the zarr store (cache-aware).
+
+    Always returns float32. The cache may hold float16 (to fit a memory-limited
+    container); it is up-cast here so downstream normalization runs in float32.
+    """
     if _WINDOW_CACHE:
         hit = _WINDOW_CACHE.get(_cache_key(store_path, file_id, start, end))
         if hit is not None:
-            return hit
+            return np.asarray(hit, dtype="float32")
     signals = _open_signals(str(store_path))
     return np.asarray(signals[file_id][:, start:end], dtype="float32")
 
 
-def prefetch_windows(table, store_path: str, workers: int = 16) -> int:
+def prefetch_windows(table, store_path: str, workers: int = 16, dtype: str = "float32") -> int:
     """Parallel-fill the window cache for every row in ``table``. Returns cache size.
 
     Windows overlap (4 s @ 2 s stride) and cluster into a few hundred files, so instead
     of issuing one latency-bound network read per window we read each FILE's full signal
     once (bandwidth-bound) and slice its windows in RAM. Files are read concurrently by a
     thread pool. Safe to call repeatedly; only missing keys are fetched.
+    ``dtype`` controls the STORED dtype: "float16" halves cache RAM (~74 KB -> 37 KB
+    per window) to fit memory-limited containers; reads always up-cast to float32.
     ``clear_window_cache`` frees the RAM.
     """
     from collections import defaultdict
@@ -82,7 +88,7 @@ def prefetch_windows(table, store_path: str, workers: int = 16) -> int:
     def _load_file(item):
         fid, wins = item
         full = np.asarray(signals[fid][:], dtype="float32")  # one contiguous read
-        return [(k, np.ascontiguousarray(full[:, s:e])) for k, s, e in wins]
+        return [(k, np.ascontiguousarray(full[:, s:e], dtype=dtype)) for k, s, e in wins]
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
         for chunk in ex.map(_load_file, by_file.items()):
