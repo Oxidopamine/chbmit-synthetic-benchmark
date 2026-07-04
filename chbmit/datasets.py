@@ -33,18 +33,16 @@ def _open_signals(store_path: str):
     return root["signals"]
 
 
-# Opt-in in-process window cache. The processed store may live on a network
+# Opt-in in-process signal cache. The processed store may live on a network
 # filesystem (~65 ms/window latency); streaming the full train/val/test tables
-# through the pipeline every epoch is then infeasible. ``prefetch_windows`` fills
-# this cache with a thread pool once (reads are latency-bound and release the GIL),
-# after which ``read_window`` serves from RAM. The cache is INERT until prefetched,
-# so default behaviour (and existing tests) are unchanged. Callers must treat the
-# returned array as read-only (downstream normalization already allocates copies).
-_WINDOW_CACHE: dict = {}
-
-
-def _cache_key(store_path: str, file_id, start: int, end: int):
-    return (str(store_path), str(file_id), int(start), int(end))
+# through the pipeline every epoch is then infeasible. ``prefetch_windows`` caches
+# each referenced file's FULL signal once (a bandwidth-bound contiguous read), after
+# which ``read_window`` slices from RAM. Caching whole signals rather than individual
+# windows avoids duplicating the 50%-overlapping windows (~2x less RAM) -- important
+# under a memory-limited container cgroup. The cache is INERT until prefetched, so
+# default behaviour (and existing tests) are unchanged. Callers must treat the returned
+# array as read-only (downstream normalization already allocates copies).
+_SIGNAL_CACHE: dict = {}
 
 
 def read_window(store_path: str, file_id: str, start: int, end: int) -> np.ndarray:
@@ -53,52 +51,45 @@ def read_window(store_path: str, file_id: str, start: int, end: int) -> np.ndarr
     Always returns float32. The cache may hold float16 (to fit a memory-limited
     container); it is up-cast here so downstream normalization runs in float32.
     """
-    if _WINDOW_CACHE:
-        hit = _WINDOW_CACHE.get(_cache_key(store_path, file_id, start, end))
-        if hit is not None:
-            return np.asarray(hit, dtype="float32")
+    if _SIGNAL_CACHE:
+        sig = _SIGNAL_CACHE.get((str(store_path), str(file_id)))
+        if sig is not None:
+            return np.asarray(sig[:, start:end], dtype="float32")
     signals = _open_signals(str(store_path))
     return np.asarray(signals[file_id][:, start:end], dtype="float32")
 
 
 def prefetch_windows(table, store_path: str, workers: int = 16, dtype: str = "float32") -> int:
-    """Parallel-fill the window cache for every row in ``table``. Returns cache size.
+    """Cache the FULL signal of every file referenced in ``table``. Returns cache size.
 
-    Windows overlap (4 s @ 2 s stride) and cluster into a few hundred files, so instead
-    of issuing one latency-bound network read per window we read each FILE's full signal
-    once (bandwidth-bound) and slice its windows in RAM. Files are read concurrently by a
-    thread pool. Safe to call repeatedly; only missing keys are fetched.
-    ``dtype`` controls the STORED dtype: "float16" halves cache RAM (~74 KB -> 37 KB
-    per window) to fit memory-limited containers; reads always up-cast to float32.
-    ``clear_window_cache`` frees the RAM.
+    Reads each file's signal once (contiguous, bandwidth-bound) via a thread pool; reads
+    are latency-bound and release the GIL. Whole-file caching avoids the ~2x duplication
+    of caching overlapping windows individually. ``dtype="float16"`` roughly halves cache
+    RAM (reads still up-cast to float32) for memory-limited containers. Safe to call
+    repeatedly; only missing files are fetched. ``clear_window_cache`` frees the RAM.
     """
-    from collections import defaultdict
     from concurrent.futures import ThreadPoolExecutor
 
     signals = _open_signals(str(store_path))
-    fids = table["file_id"].to_numpy()
-    starts = table["start_sample"].to_numpy()
-    ends = table["end_sample"].to_numpy()
-    by_file = defaultdict(list)
-    for fid, s, e in zip(fids, starts, ends):
-        k = _cache_key(store_path, fid, s, e)
-        if k not in _WINDOW_CACHE:
-            by_file[str(fid)].append((k, int(s), int(e)))
+    fids = [str(x) for x in pd_unique(table["file_id"])]
+    todo = [f for f in fids if (str(store_path), f) not in _SIGNAL_CACHE]
 
-    def _load_file(item):
-        fid, wins = item
-        full = np.asarray(signals[fid][:], dtype="float32")  # one contiguous read
-        return [(k, np.ascontiguousarray(full[:, s:e], dtype=dtype)) for k, s, e in wins]
+    def _load(fid):
+        return fid, np.ascontiguousarray(signals[fid][:], dtype=dtype)
 
     with ThreadPoolExecutor(max_workers=workers) as ex:
-        for chunk in ex.map(_load_file, by_file.items()):
-            for k, arr in chunk:
-                _WINDOW_CACHE[k] = arr
-    return len(_WINDOW_CACHE)
+        for fid, arr in ex.map(_load, todo):
+            _SIGNAL_CACHE[(str(store_path), fid)] = arr
+    return len(_SIGNAL_CACHE)
+
+
+def pd_unique(series):
+    # local helper to avoid importing pandas at module top just for .unique()
+    return series.unique()
 
 
 def clear_window_cache() -> None:
-    _WINDOW_CACHE.clear()
+    _SIGNAL_CACHE.clear()
 
 
 class WindowDataset(Dataset):
