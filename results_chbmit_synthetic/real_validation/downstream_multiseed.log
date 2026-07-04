@@ -1,0 +1,101 @@
+[resume] 6 complete blocks loaded from results_chbmit_synthetic/real_validation/analysis_tierB/downstream_gated_multiseed.csv
+[     1s] fold 0 already complete; skipping
+[    49s] fold 1: val/test prefetched
+[   153s] f1 s42: WGAN loaded from cache
+[  1470s] DONE f1 s42 eegnet: real=0.278
+[  2347s] DONE f1 s42 tcn: real=0.217
+[  2994s] f1 s123: WGAN trained+saved
+[  3842s] DONE f1 s123 eegnet: real=0.196
+[  5241s] DONE f1 s123 tcn: real=0.151
+[  5889s] f1 s2024: WGAN trained+saved
+[  6852s] DONE f1 s2024 eegnet: real=0.152
+[  7704s] DONE f1 s2024 tcn: real=0.158
+[  7711s] fold 1 committed+pushed
+[  7764s] fold 2: val/test prefetched
+[  8617s] f2 s42: WGAN trained+saved
+[  9490s] DONE f2 s42 eegnet: real=0.191
+[ 11256s] DONE f2 s42 tcn: real=0.212
+[ 12039s] f2 s123: WGAN trained+saved
+[ 13304s] DONE f2 s123 eegnet: real=0.245
+[ 15320s] DONE f2 s123 tcn: real=0.203
+[ 16088s] f2 s2024: WGAN trained+saved
+[ 17258s] DONE f2 s2024 eegnet: real=0.107
+[ 18880s] DONE f2 s2024 tcn: real=0.238
+[ 18887s] fold 2 committed+pushed
+
+=== MULTI-SEED DOWNSTREAM (band-limited WGAN) ===
+ fold  seed detector condition   q  event_f1  fp_per_24h  aug_event_f1  gate_admission_rate reverted_to_real_only
+    0    42   eegnet real_only NaN  0.164773    6.837968      0.164773                  NaN                   NaN
+    0    42   eegnet   ungated NaN  0.233649   15.459210      0.233649                  NaN                   NaN
+    0    42   eegnet     gated 0.9  0.164773    6.837968      0.122656             0.000066                  True
+    0    42   eegnet     gated 0.5  0.164773    6.837968      0.204895             0.152512                  True
+    0    42      tcn real_only NaN  0.310458    2.387213      0.310458                  NaN                   NaN
+    0    42      tcn   ungated NaN  0.119285  133.198226      0.119285                  NaN                   NaN
+    0    42      tcn     gated 0.9  0.333333    2.357251      0.333333             0.001462                 False
+    0    42      tcn     gated 0.5  0.310458    2.387213      0.324074             0.144006                  True
+    0   123   eegnet real_only NaN  0.385051    3.678631      0.385051                  NaN                   NaN
+    0   123   eegnet   ungated NaN  0.242457    5.206119      0.242457                  NaN                   NaN
+    0   123   eegnet     gated 0.9  0.385051    3.678631      0.087163             0.015085                  True
+    0   123   eegnet     gated 0.5  0.385051    3.678631      0.088538             0.166667                  True
+    0   123      tcn real_only NaN  0.099070   29.403164      0.099070                  NaN                   NaN
+    0   123      tcn   ungated NaN  0.349310    6.107194      0.349310                  NaN                   NaN
+    0   123      tcn     gated 0.9  0.228140    7.257136      0.228140             0.009569                 False
+    0   123      tcn     gated 0.5  0.275000    9.229807      0.275000             0.166667                 False
+    0  2024   eegnet real_only NaN  0.241627    2.202846      0.241627                  NaN                   NaN
+    0  2024   eegnet   ungated NaN  0.220865    4.994438      0.220865                  NaN                   NaN
+    0  2024   eegnet     gated 0.9  0.241627    2.202846      0.205645             0.000465                  True
+    0  2024   eegnet     gated 0.5  0.241627    2.202846      0.115286             0.166667                  True
+    0  2024      tcn real_only NaN  0.132212   12.769852      0.132212                  NaN                   NaN
+    0  2024      tcn   ungated NaN  0.252646    3.722292      0.252646                  NaN                   NaN
+    0  2024      tcn     gated 0.9  0.109450   18.842052      0.109450             0.005516                 False
+    0  2024      tcn     gated 0.5  0.132212   12.769852      0.153169             0.166667                  True
+    1    42   eegnet real_only NaN  0.277957   35.275941      0.277957                  NaN                  None
+    1    42   eegnet   ungated NaN  0.220965   60.443084      0.220965                  NaN                  None
+    1    42   eegnet     gated 0.9  0.277957   35.275941      0.162016             0.000416                  True
+    1    42   eegnet     gated 0.5  0.277957   35.275941      0.229859             0.166667                  True
+    1    42      tcn real_only NaN  0.216883   12.174846      0.216883                  NaN                  None
+    1    42      tcn   ungated NaN  0.283671   18.051972      0.283671                  NaN                  None
+    1    42      tcn     gated 0.9  0.216883   12.174846      0.248859             0.004018                  True
+    1    42      tcn     gated 0.5  0.216883   12.174846      0.329610             0.166667                  True
+    1   123   eegnet real_only NaN  0.196351    9.756598      0.196351                  NaN                  None
+    1   123   eegnet   ungated NaN  0.207706   71.418969      0.207706                  NaN                  None
+    1   123   eegnet     gated 0.9  0.196351    9.756598      0.263263             0.000069                  True
+    1   123   eegnet     gated 0.5  0.196351    9.756598      0.178077             0.129191                  True
+    1   123      tcn real_only NaN  0.151433   27.945420      0.151433                  NaN                  None
+    1   123      tcn   ungated NaN  0.102343   65.822016      0.102343                  NaN                  None
+    1   123      tcn     gated 0.9  0.151433   27.945420      0.279496             0.009906                  True
+    1   123      tcn     gated 0.5  0.151433   27.945420      0.198421             0.166667                  True
+    1  2024   eegnet real_only NaN  0.152016   61.233599      0.152016                  NaN                  None
+    1  2024   eegnet   ungated NaN  0.521889    2.526811      0.521889                  NaN                  None
+    1  2024   eegnet     gated 0.9  0.152016   61.233599      0.156397             0.000000                  True
+    1  2024   eegnet     gated 0.5  0.152016   61.233599      0.497500             0.058119                  True
+    1  2024      tcn real_only NaN  0.158463   39.651349      0.158463                  NaN                  None
+    1  2024      tcn   ungated NaN  0.212500    7.632029      0.212500                  NaN                  None
+    1  2024      tcn     gated 0.9  0.158463   39.651349      0.218293             0.001801                  True
+    1  2024      tcn     gated 0.5  0.158463   39.651349      0.120908             0.166667                  True
+    2    42   eegnet real_only NaN  0.190590    2.341945      0.190590                  NaN                  None
+    2    42   eegnet   ungated NaN  0.226387    1.485156      0.226387                  NaN                  None
+    2    42   eegnet     gated 0.9  0.190590    2.341945      0.258730             0.000441                  True
+    2    42   eegnet     gated 0.5  0.209244    0.495052      0.209244             0.166667                 False
+    2    42      tcn real_only NaN  0.212415   18.551658      0.212415                  NaN                  None
+    2    42      tcn   ungated NaN  0.463769   37.976319      0.463769                  NaN                  None
+    2    42      tcn     gated 0.9  0.212415   18.551658      0.410488             0.012675                  True
+    2    42      tcn     gated 0.5  0.192598    8.589785      0.192598             0.166667                 False
+    2   123   eegnet real_only NaN  0.245333   64.170152      0.245333                  NaN                  None
+    2   123   eegnet   ungated NaN  0.197405   31.052087      0.197405                  NaN                  None
+    2   123   eegnet     gated 0.9  0.346146   33.862857      0.346146             0.002333                 False
+    2   123   eegnet     gated 0.5  0.245333   64.170152      0.053093             0.166667                  True
+    2   123      tcn real_only NaN  0.203333   12.412802      0.203333                  NaN                  None
+    2   123      tcn   ungated NaN  0.218235    3.144214      0.218235                  NaN                  None
+    2   123      tcn     gated 0.9  0.376831   10.413417      0.376831             0.006180                 False
+    2   123      tcn     gated 0.5  0.203333   12.412802      0.414312             0.166667                  True
+    2  2024   eegnet real_only NaN  0.106667    1.242857      0.106667                  NaN                  None
+    2  2024   eegnet   ungated NaN  0.194583   76.991313      0.194583                  NaN                  None
+    2  2024   eegnet     gated 0.9  0.106667    1.242857      0.324868             0.000063                  True
+    2  2024   eegnet     gated 0.5  0.280808    1.039889      0.280808             0.053601                 False
+    2  2024      tcn real_only NaN  0.238291    2.389405      0.238291                  NaN                  None
+    2  2024      tcn   ungated NaN  0.260929    6.398405      0.260929                  NaN                  None
+    2  2024      tcn     gated 0.9  0.238291    2.389405      0.265611             0.004414                  True
+    2  2024      tcn     gated 0.5  0.238291    2.389405      0.143277             0.166667                  True
+
+[ 18887s] wrote results_chbmit_synthetic/real_validation/analysis_tierB/downstream_gated_multiseed.csv

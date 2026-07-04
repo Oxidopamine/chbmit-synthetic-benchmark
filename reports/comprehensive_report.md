@@ -1,615 +1,398 @@
 # Does Synthetic Ictal EEG Help or Harm Seizure Detection?
 ### A Leakage-Safe, Harm-First Benchmark on CHB-MIT — Comprehensive Report
 
-*Machine Learning for Biomedical Signals. Report date: 3 July 2026.*
-*Status: baselines + core experiment complete; generator-fidelity, gate-mechanism, and downstream gated experiments completed on fold 0 (single seed). Multi-seed / multi-dataset validation pending.*
+*Machine Learning for Biomedical Signals. Report date: 4 July 2026.*
+*Status: baselines + core experiment complete; generator-fidelity, gate-mechanism, single-fold and **multi-seed × multi-fold (n=9) downstream experiments complete**; a real-data positive-control run is in progress. Single dataset (CHB-MIT); second-dataset and leave-one-patient-out validation pending.*
 
 ---
 
 ## How to read this report
 
 This document is written to be understood by a reader who is **not** a specialist in
-machine learning or epilepsy. Technical terms are defined the first time they appear,
-and a **glossary** at the end collects them all. Each results section states first, in
-plain language, *what question it answers and what we found*, then gives the numbers and
-a discussion. Nothing here requires you to take a claim on faith: every number is
-produced by scripts in this repository from the raw public data.
+machine learning or epilepsy. Technical terms are defined the first time they appear, and
+a **glossary** (§15) collects them all. Each results section states first, in plain
+language, *what question it answers and what we found*, then gives the numbers and a
+discussion. Every number is produced by scripts in this repository from the public data.
 
 ---
 
 ## 1. Executive summary (plain language)
 
 An epilepsy monitor is a computer that watches a patient's brain-wave recording (an
-**EEG**) and sounds an alarm when a seizure begins. Training such a detector is hard
-because seizures are *rare*: in our data, only about **0.3%** of the recording is
-seizure. A model shown mostly non-seizure data tends either to miss seizures or to cry
-wolf constantly.
+**EEG**) and alarms when a seizure begins. Training such a detector is hard because
+seizures are *rare*: only ~**0.3%** of our data is seizure. A model shown mostly
+non-seizure data tends either to miss seizures or to alarm constantly.
 
-A popular idea to fix this is **synthetic data augmentation**: train a second AI (a
-"generator") to manufacture fake but realistic seizure snippets, and add them to the
-training set to give the detector more seizures to learn from. Much of the published
-literature reports that this helps. This project asks a more skeptical question, in a
-deliberately honest experimental setup:
+A popular remedy is **synthetic data augmentation**: train a generator to manufacture
+fake-but-realistic seizure snippets and add them to training. Much of the literature
+reports this helps. This project asks a more skeptical, safety-first question:
 
-> **Does adding synthetic seizures actually help a detector recognise seizures in
-> patients it has never seen — or can it quietly cause harm? And if it can harm, can a
-> simple safety mechanism prevent the harm while keeping any benefit?**
+> **Does adding synthetic seizures actually help detection in patients the model has never
+> seen — or can it quietly cause harm? If it can harm, can a simple gatekeeper prevent the
+> harm while keeping any benefit? And can a strong-enough generator make it genuinely
+> beneficial?**
 
-Our answers, in one paragraph:
+Our answers:
 
-1. **Naive synthetic augmentation is unreliable and can cause real harm.** In our core
-   experiment it helped some detectors and hurt others; in the worst cases it degraded
-   performance substantially and multiplied false alarms.
-2. **A "fail-closed trust gate" — a gatekeeper that only admits synthetic data if it
-   provably does not worsen validation performance — removes the downside.** When the
-   synthetic data is poor, the gate declines it and the system safely falls back to
-   using only real data.
-3. **Making the generator better is genuinely hard, and *why* it is hard is subtle.**
-   Two very different generator designs both fail a naive "realism" test — but for
-   different reasons, and the standard realism *metrics* turn out to be misleading.
-4. **With a stronger generator whose output is cleaned up, we found the first case where
-   the gate admitted synthetic data and the detector improved** (on one detector, one
-   data split). This is a promising but fragile signal that must be confirmed across
-   more random seeds and patients before it can be believed.
+1. **Naive synthetic augmentation is unreliable and can cause real harm** — it helped some
+   detectors and hurt others, sometimes multiplying false alarms.
+2. **A "fail-closed trust gate" removes the downside.** When synthetic data is poor, the
+   gate declines it and the system safely reverts to real-data-only performance.
+3. **Making the generator good is hard, and standard "realism" metrics mislead.** Two very
+   different generators both fail a naive realism test — but for different reasons, and the
+   usual fidelity score *saturates* (can't tell a near-perfect generator from a poor one).
+4. **With a stronger, cleaned-up generator we found a statistically significant benefit for
+   one detector.** Across 9 patient-split × random-seed cells, admitting our improved
+   synthetic data improved the TCN detector's accuracy by **+0.083 event-F1 (p = 0.008,
+   8/9 cells)** — the first solid evidence that synthetic augmentation can be made *safe and
+   beneficial*.
+5. **But the gate, as pre-registered, is over-conservative** — it rejects more than half the
+   genuinely-beneficial cases, so the benefit it actually *delivers* (+0.034) is smaller than
+   the benefit that *exists* (+0.083). Loosening the gate is the clear next lever.
+
+**One-line takeaway:** naive synthetic augmentation is a hazard; a fail-closed gate makes it
+safe; and a good-enough generator can make it *beneficial* (significantly so for TCN) — the
+remaining work is tuning the gate to capture that benefit and confirming it on more data.
 
 ---
 
 ## 2. Background: the problem and why it is hard
 
-### 2.1 What the detector is doing
+### 2.1 What the detector does
 
-An EEG records tiny electrical voltages from electrodes on the scalp — in our data,
-**18 channels** (electrode pairs) sampled **256 times per second**. The detector reads
-this stream in short **windows** (here, 4-second windows taken every 2 seconds) and, for
-each window, outputs a probability that a seizure is occurring.
+An EEG records tiny scalp voltages — here **18 channels** at **256 samples/second**. The
+detector reads the stream in **4-second windows** (every 2 seconds) and outputs, per window,
+a probability that a seizure is occurring.
 
-### 2.2 The central difficulty: class imbalance
+### 2.2 Class imbalance
 
-Because seizures are rare, the training data is extremely lopsided — 99.7% "background"
-(non-seizure), 0.3% "ictal" (seizure; *ictal* is the medical term for the seizure state).
-A model can score 99.7% "accuracy" by never predicting a seizure at all, which is useless.
-This is the **class-imbalance** problem.
+Seizures are rare, so training data is ~99.7% "background" vs 0.3% "ictal" (*ictal* = the
+seizure state). A model can score 99.7% "accuracy" by never predicting a seizure — useless.
 
-### 2.3 Two things the augmentation literature usually gets wrong
+### 2.3 Two things the literature usually gets wrong
 
-**(a) Data leakage.** EEG from the *same patient* is highly recognisable. If windows from
-one patient appear in **both** the training set and the test set, the model can succeed by
-recognising the patient rather than the seizure. Reported accuracy is then inflated and
-does not reflect performance on a genuinely new patient. Avoiding this requires a
-**patient-independent** (also called **leave-patients-out**) protocol: no patient is ever
-split across training and test. Much of the literature does not enforce this.
+**(a) Data leakage.** EEG from the *same patient* is recognisable. If one patient's windows
+appear in both training and test, reported accuracy is inflated and doesn't reflect a new
+patient. Avoiding this needs a **patient-independent** protocol.
 
-**(b) Silent harm.** A generator can produce fake seizures that are unrealistic or too
-similar to each other. Training on them can *degrade* the detector — and often the damage
-is uneven, hurting some patients while the average still looks acceptable. Averages hide
-this. We therefore report **tail risk**: the worst cases, not just the mean.
+**(b) Silent harm.** A generator can produce unrealistic or low-diversity "seizures";
+training on them can *degrade* the detector, often unevenly across patients while the average
+looks fine. We therefore report **tail risk** (worst cases), not just averages.
 
-### 2.4 The idea we test: a fail-closed trust gate
+### 2.4 The fail-closed trust gate
 
-Rather than trusting synthetic data blindly, we borrow a safety principle from
-engineering: **fail closed**. A gatekeeper ("trust gate") admits synthetic seizures into
-training **only if** the resulting detector demonstrably does not do worse on a
-held-out **validation** set (and does not raise false alarms beyond a small
-pre-registered tolerance). If those conditions are not met, it admits nothing and reverts
-to a detector trained on real data only. In the worst case the gate does *nothing* — but
-it should never make things worse.
+Instead of trusting synthetic data blindly, a gatekeeper admits synthetic seizures **only if**
+the resulting detector demonstrably does not do worse on held-out **validation** data (within a
+small pre-registered tolerance). Otherwise it admits nothing and reverts to a real-data-only
+detector. In the worst case the gate does *nothing* — but should never make things worse.
 
 ---
 
 ## 3. Research questions
 
-- **Q1 — Baseline reality.** How well do standard detectors perform on unseen patients
-  using only real data, under honest event-level scoring?
-- **Q2 — Help or harm.** Does synthetic augmentation improve or degrade detection versus
-  simple, safe baselines?
-- **Q3 — Mitigation.** Does the fail-closed trust gate prevent the harmful cases while
-  preserving gains?
-- **Q4 — Can we make it help?** If the standard generator is too weak to clear the gate,
-  can a stronger generator (better realism, cleaned-up output) produce synthetic data
-  that the gate admits *and* that actually improves detection?
-
-Questions Q1–Q3 were addressed by the baseline and core experiments (Sections 6–7).
-Question Q4 is the focus of the new work reported here (Sections 8–10).
+- **Q1 — Baseline reality.** How well do detectors do on unseen patients with real data only?
+- **Q2 — Help or harm.** Does synthetic augmentation improve or degrade detection vs simple
+  safe baselines?
+- **Q3 — Mitigation.** Does the fail-closed gate prevent harm while preserving gains?
+- **Q4 — Can we make it help?** With a stronger, cleaned-up generator, does admitted synthetic
+  data actually *improve* detection — and does the gate capture that benefit?
 
 ---
 
 ## 4. Data
 
-We use the **CHB-MIT Scalp EEG Database** (Children's Hospital Boston / MIT), a public
-dataset on PhysioNet. After a channel-consistency audit that keeps a fixed 18-channel
-bipolar montage (a standard set of electrode pairings):
+**CHB-MIT Scalp EEG Database** (PhysioNet). After a channel audit fixing an 18-channel bipolar
+montage: **24 patients** (23 leakage-safe groups; chb01/chb21 merged), **198 seizures**,
+~**974 h**, band-pass filtered **0.5–40 Hz** (zero-phase), resampled to **256 Hz**, windowed
+into **1,746,447** windows of which **5,563 (0.32%)** are seizure.
 
-- **24 patients** (treated as **23 leakage-safe groups**; patients chb01 and chb21 are the
-  same individual and are merged so they can never be split across train and test),
-- **673 recordings**, **198 annotated seizures**, ~**974 hours** of EEG,
-- signals **band-pass filtered to 0.5–40 Hz** (a standard clinical frequency range) with a
-  zero-phase filter, and resampled to **256 Hz**,
-- windowed into **1,746,447** four-second windows, of which only **5,563 (0.32%)** are
-  seizure.
-
-**Band-pass filtering** removes very slow drifts (below 0.5 Hz) and high-frequency noise
-(above 40 Hz). This detail becomes important later (Section 8): real EEG has essentially
-*no* power above 40 Hz because the filter removed it, and a good generator must reproduce
-that.
+The 0.5–40 Hz filter matters later (§8): real EEG has essentially no power above 40 Hz, and a
+good generator must reproduce that.
 
 ---
 
 ## 5. Methods
 
 ### 5.1 Leakage-safe splitting
+**Grouped 5-fold cross-validation** at the patient level — training/validation/test patients
+never overlap; verified programmatically. (Validation tunes decisions; test is used only for
+final numbers.)
 
-We use **grouped 5-fold cross-validation** at the patient level. The patients are divided
-into 5 "folds"; in each fold, some patients are used for training, some for validation
-(tuning), and some for testing (final scoring), with **zero patient overlap** between the
-three. We verified programmatically that every patient group is tested exactly once and
-never leaks across the split.
+### 5.2 Detectors
+**EEGNet** (~1,900 params), **LCT** (~121k, convolutional-transformer), **TCN** (temporal
+convolutional network) — spanning a wide capacity range so conclusions aren't tied to one model.
 
-- **Training set** — patients the detector learns from.
-- **Validation set** — held-out patients used to *tune* decisions (e.g. the alarm
-  threshold, and the trust gate's admit/reject choice). Never used for final scoring.
-- **Test set** — held-out patients used *only* for the final reported numbers.
+### 5.3 Generators (trained patient-independently on each fold's training patients only)
+- **cVAE** — conditional Variational Autoencoder; stable but tends to blur/over-smooth.
+- **WGAN-GP** — Wasserstein GAN with gradient penalty; sharper but trickier to train.
 
-### 5.2 Detectors (the models being trained)
+### 5.4 Scoring: event-level, harm-first
+**Event-F1** (headline, 0–1), **event sensitivity/precision**, and **false alarms per 24 h
+(FP/24h)** — plus tail-risk (worst-fold, harm rates). Window-AUROC is reported for reference.
 
-Three neural-network detectors spanning a wide range of size, so conclusions are not tied
-to one architecture:
-
-- **EEGNet** — a very small network (~1,900 parameters). "Parameters" are the tunable
-  numbers a network learns; more parameters means more capacity but higher overfitting
-  risk.
-- **LCT** — a mid-size convolutional-transformer (~121,000 parameters).
-- **TCN** — a temporal convolutional network (a model specialised for time series).
-
-### 5.3 Generators (the models that fabricate synthetic seizures)
-
-Both are trained **patient-independently** — only on each fold's *training* patients — so
-synthetic data never carries information about test patients.
-
-- **cVAE (conditional Variational Autoencoder).** A network that learns to compress real
-  seizure windows into a compact "latent code" and reconstruct them, after which it can
-  sample new codes to generate new windows. VAEs are stable but tend to produce **blurry,
-  over-smoothed** output.
-- **WGAN-GP (Wasserstein GAN with Gradient Penalty).** A **generative adversarial
-  network**: a generator and a critic play a game — the generator tries to fool the critic
-  into thinking its fakes are real, the critic tries to tell them apart. GANs can produce
-  sharper output but are trickier to train.
-
-### 5.4 How we score detectors: event-level, harm-first
-
-Scoring at the level of individual 4-second windows is misleading clinically. What matters
-is whether the detector catches the **seizure event** and how often it **falsely alarms**.
-We use **SzCORE**-aligned **event-level** metrics:
-
-- **Event sensitivity** — fraction of real seizures the detector catches (higher is
-  better).
-- **Event precision** — of the alarms it raises, the fraction that are real seizures.
-- **Event-F1** — a single balanced score combining sensitivity and precision (0 = useless,
-  1 = perfect). This is our headline metric.
-- **FP/24h — false alarms per 24 hours** — how often it cries wolf per day (lower is
-  better; critical clinically, because alarm fatigue makes a monitor unusable).
-
-We also report **tail risk** (worst-fold outcomes, harm rates), not just averages, because
-silent harm hides in the tail.
-
-For reference, **window AUROC** (area under the ROC curve at the window level) measures raw
-discrimination ability at the window level; it often looks healthy even when event-level
-performance is poor — which is exactly why we score at the event level.
-
-### 5.5 The trust gate, precisely
-
-The gate has two stages:
-
-1. **Admission (window level).** Score every candidate synthetic window with the
-   **real-only detector as a "teacher"**: how confident is the real-trained detector that
-   this window is a seizure? Admit a synthetic window only if the teacher's confidence
-   exceeds the **q-th quantile** of the teacher's confidence on *real* seizure windows.
-   `q` is a strictness dial: `q = 0.90` means "a synthetic window must look at least as
-   seizure-like to the teacher as the top 10% of real seizures." Higher `q` = stricter.
-   *(Note: the gate keys on the teacher's confidence, not on any separate "realism"
-   score — a point that matters in Section 9.)*
-2. **Fail-closed selection (event level).** Train the detector on real + admitted
-   synthetic, then compare its **validation** event-F1 and false-alarm rate to the
-   real-only detector. Keep the augmented model only if it does not worsen validation
-   event-F1 and does not raise validation false alarms beyond a small pre-registered
-   tolerance. Otherwise **revert** to the real-only model.
-
-All thresholds are **pre-registered** (fixed in advance, in `PREREGISTRATION.md`) so we
-cannot tune them after seeing results.
+### 5.5 The trust gate
+**(1) Admission:** score each candidate synthetic window with the real-only detector as a
+"teacher"; admit only those whose teacher seizure-confidence exceeds the **q-quantile** of the
+teacher's confidence on *real* seizures (higher q = stricter). **(2) Fail-closed selection:**
+train on real + admitted synthetic; keep the augmented model only if it doesn't worsen
+validation event-F1 / false alarms, else **revert** to real-only. All thresholds
+**pre-registered**.
 
 ---
 
-## 6. Results — Q1: real-only baselines (Tier A)
+## 6. Results — Q1: real-only baselines
 
-**Plain-language finding:** even with real data only, detecting seizures in *new* patients
-is genuinely hard — far from solved — and the difficulty varies a lot from patient to
-patient.
+Cross-patient detection is genuinely hard even with real data (event-F1 0.12–0.30, 34–65
+FP/24h), and varies a lot between patients (±0.11) — motivating tail-risk reporting.
 
-Mean ± standard deviation over 5 folds (each fold tests entirely held-out patients):
-
-| Detector / condition | Event-F1 | Event Sens. | Event Prec. | FP / 24h | Win AUROC |
+| Detector / condition | Event-F1 | Sens. | Prec. | FP/24h | Win AUROC |
 |---|---|---|---|---|---|
-| **EEGNet** real_only | 0.179 ± 0.12 | 0.596 | 0.165 | 60.6 | 0.768 |
+| EEGNet real_only | 0.179 ± 0.12 | 0.596 | 0.165 | 60.6 | 0.768 |
 | EEGNet class_weighted | 0.117 ± 0.11 | 0.578 | 0.129 | 64.6 | 0.808 |
 | EEGNet classical_aug | 0.206 ± 0.13 | 0.569 | 0.188 | 45.4 | 0.784 |
-| **LCT** real_only | 0.246 ± 0.11 | 0.609 | 0.282 | 43.8 | 0.800 |
+| LCT real_only | 0.246 ± 0.11 | 0.609 | 0.282 | 43.8 | 0.800 |
 | LCT class_weighted | 0.295 ± 0.04 | 0.577 | 0.287 | 34.1 | 0.805 |
 | LCT classical_aug | 0.230 ± 0.12 | 0.720 | 0.196 | 58.7 | 0.808 |
 
-*("class_weighted" = penalise missing seizures more heavily during training;
-"classical_aug" = simple label-preserving signal augmentations, e.g. jitter/scaling — not
-generative.)*
-
-**Discussion.** Event-F1 of 0.12–0.30 with 34–65 false alarms per day is modest, even
-though window-AUROC looks healthy (~0.77–0.81). This gap is the whole reason we score at
-the event level. The large between-fold spread (±0.11) reflects genuine per-patient
-difficulty and motivates reporting tail risk.
-
 ---
 
-## 7. Results — Q2 & Q3: help/harm and the gate (Tier B core)
+## 7. Results — Q2 & Q3: core help/harm and the gate (Tier B, cVAE, 1 seed)
 
-**Plain-language finding:** naive synthetic augmentation was a coin-flip — it helped one
-detector, was neutral for another, and hurt the third (with a jump in false alarms). The
-trust gate, faced with a weak generator, **declined all synthetic data 100% of the time**
-and safely reproduced real-only performance. A cheap, safe baseline (class weighting)
-often beat synthetic augmentation.
+Naive synthetic augmentation was a **coin-flip** (helped EEGNet, neutral for LCT, hurt TCN with
+rising false alarms). Faced with the low-fidelity cVAE, the gate **declined all synthetic 100%**
+and reproduced real-only performance. A cheap baseline (class weighting) often beat synthetic
+augmentation. Mean event-F1 (pooled over folds/scarcity):
 
-All 225 model-training cells completed (5 folds × 3 detectors × 3 scarcity levels × 5
-conditions), plus 15 generator fits. Values are mean event-F1 pooled over folds and
-scarcity levels, single seed (42), with the **cVAE** generator.
-
-**Table 7a — mean event-F1 by detector × condition (higher is better):**
-
-| Detector | real_only | class_weighted | classical_aug | ungated synth | trust-gated synth |
+| Detector | real_only | class_weighted | classical_aug | ungated synth | trust-gated |
 |---|---|---|---|---|---|
 | EEGNet | 0.206 | 0.190 | 0.164 | **0.253** | 0.206 |
 | LCT | 0.212 | **0.267** | 0.188 | 0.226 | 0.212 |
 | TCN | 0.167 | **0.237** | 0.241 | 0.162 | 0.167 |
 
-**Table 7b — mean false alarms / 24h (lower is better):**
-
-| Detector | real_only | class_weighted | classical_aug | ungated synth | trust-gated synth |
-|---|---|---|---|---|---|
-| EEGNet | 43.8 | 60.5 | 43.4 | **42.3** | 43.8 |
-| LCT | 47.8 | 34.9 | 69.8 | **36.3** | 47.8 |
-| TCN | 61.8 | 48.0 | 39.9 | **82.2** | 61.8 |
-
-**Three findings.**
-
-- **Silent harm is real.** Naive (ungated) synthetic helped EEGNet (0.253 vs 0.206) but
-  hurt TCN (0.162 vs 0.167, with false alarms rising 61.8 → 82.2/day). In the worst fold,
-  ungated synthetic cost up to −0.43 event-F1 versus the best baseline. This is exactly
-  the uneven, hidden harm the project warns about.
-- **The safety net works.** The gate **failed closed 100% of the time** — across all 45
-  gated cells it admitted **zero** synthetic windows, so gated performance is identical to
-  real-only. No synthetic-induced harm got through.
-- **A simple baseline often wins.** Plain class weighting was best for LCT (0.267) and
-  strong for TCN (0.237), beating naive synthetic augmentation. Synthetic data has to earn
-  its place.
-
-**The open question this raised.** The gate declined *everything* because the cVAE was
-low-fidelity. So the gate removed the downside but delivered no upside. The natural next
-question (Q4): **can a better generator produce synthetic data good enough to clear the
-gate and actually help?** Everything below (Sections 8–10) investigates that.
+This raised **Q4**: the gate removed downside but delivered no upside because the cVAE was too
+weak. Can a stronger generator clear the gate *and* help?
 
 ---
 
-## 8. Results — Q4, part 1: why is the generator's output "obviously fake"?
+## 8. Results — Q4(a): why the generator's output looks "fake"
 
-**Plain-language finding:** we measured *how* fake the synthetic seizures look, and made
-two discoveries. First, the WGAN-GP generator actually reproduces the realistic frequency
-content of seizures in the physiological band (0.5–40 Hz) **almost perfectly** — far
-better than the cVAE. Second, the standard "realism score" everyone uses **saturates**: it
-screams "fake!" with equal certainty for a nearly-perfect generator and a terrible one, so
-it cannot tell them apart. The real, fixable flaw is that both generators add spurious
-high-frequency noise above 40 Hz that real (filtered) EEG does not have.
+We measured *how* fake the synthetic seizures are, using: **discriminator AUC** (0.5 = ideal /
+indistinguishable, 1.0 = trivially fake), **MMD** (frequency-distribution distance, lower
+better), **diversity ratio** (near 1 healthy; near 0 = **mode collapse**), and the **power
+spectrum**.
 
-### 8.1 The metrics we used
+**Finding 1 — training longer doesn't fix "fakeness," but the WGAN doesn't collapse.** Across
+50→600 epochs the discriminator AUC stays pinned at **1.000** for both generators, yet the
+WGAN's diversity is healthy (~0.94) while the cVAE's collapses to ~0.001. So AUC hides a real
+quality difference.
 
-To judge a generator's output we compare its synthetic windows to real seizure windows on:
+**Finding 2 — the WGAN reproduces the physiological spectrum almost perfectly.** In the 0.5–40 Hz
+band the WGAN's mean log-PSD gap to real is **0.157** vs the cVAE's **2.66** (~17× closer); its
+spectrum sits on top of the real one. See `analysis_tierB/figures/spectral_gap.png`.
 
-- **Discriminator AUC** — train a simple classifier to tell real from synthetic. If it
-  scores **0.5**, real and synthetic are indistinguishable (ideal). If it scores **1.0**,
-  synthetic is trivially recognisable as fake.
-- **MMD (Maximum Mean Discrepancy) on frequency features** — a distance between the real
-  and synthetic distributions of power across frequencies; lower is closer.
-- **Diversity ratio** — average spread among synthetic windows ÷ spread among real ones.
-  Near **1.0** is healthy; near **0** means **mode collapse** (the generator outputs
-  near-identical windows).
-- **Power spectrum (PSD)** — how a signal's energy is distributed across frequencies. Real
-  EEG has characteristic spectral shape; a good generator should match it.
+**Finding 3 — both miss the >40 Hz filter roll-off.** Real EEG has almost no power above 40 Hz
+(it was filtered); both generators emit a broadband floor there — the single largest
+real-vs-synthetic discrepancy, and **fixable** by filtering the synthetic output (§10).
 
-### 8.2 Training the WGAN longer does not fix "fakeness" — but it does not collapse
-
-Sweeping WGAN-GP training length on fold 0 (single checkpointed run):
-
-| epochs | discriminator AUC | MMD (freq) | diversity ratio |
-|---|---|---|---|
-| 50  | 1.000 | 1.203 | 1.003 |
-| 150 | 1.000 | 1.174 | 0.969 |
-| 300 | 1.000 | 1.163 | 0.939 |
-| 450 | 1.000 | 1.149 | 0.936 |
-| 600 | 1.000 | 1.139 | 0.936 |
-
-Compare the cVAE (its diversity **collapses** to ~0.001 — it outputs almost the same
-window every time):
-
-| cVAE epochs | discriminator AUC | MMD (freq) | diversity ratio |
-|---|---|---|---|
-| 150 | 1.000 | 1.324 | 0.002 |
-| 1500 | 1.000 | 1.338 | 0.001 |
-
-**Discussion.** The discriminator AUC is pinned at **1.000** for both generators at every
-setting — apparently "both are equally, totally fake." But the WGAN's diversity is healthy
-(~0.94) while the cVAE's has collapsed (~0.001), and the WGAN's MMD is lower and improving.
-So the AUC is hiding a real quality difference. The WGAN's problem is *not* mode collapse.
-
-### 8.3 The spectral-gap diagnostic: where the fakeness lives
-
-We trained both generators (fold 0) and compared the **average power spectrum** of real
-vs synthetic seizure windows, frequency by frequency
-(`analysis_tierB/figures/spectral_gap.png`).
-
-| quantity | WGAN-GP | cVAE (β=0.01) | real |
-|---|---|---|---|
-| in-band (0.5–40 Hz) mean log-PSD gap to real | **0.157** | 2.66 | — |
-| out-of-band (>40 Hz) mean log-PSD gap to real | ~12.4 | ~9 | — |
-| fraction of power above 40 Hz | 0.0072 | 0.0049 | 0.0022 |
-| discriminator AUC using **only** 0.5–40 Hz features | 1.000 | 1.000 | — |
-
-**Discussion — three results here, each important:**
-
-1. **The WGAN reproduces the physiological seizure spectrum almost perfectly.** Its
-   in-band gap (0.157) is ~17× smaller than the cVAE's (2.66). In the figure, the WGAN's
-   spectrum sits right on top of the real spectrum across the whole 0.5–40 Hz band; the
-   cVAE is visibly wrong. So in the frequency range that matters clinically, the WGAN is a
-   genuinely good generator.
-2. **Both generators fail to reproduce the filter roll-off above 40 Hz.** Real EEG was
-   band-pass filtered, so it has almost no power above 40 Hz (its spectrum falls ~10 orders
-   of magnitude). Both generators instead emit a flat "floor" of high-frequency noise. This
-   out-of-band mismatch is enormous (gap ~12) and is the single largest real-vs-synthetic
-   discrepancy. **Crucially, this is fixable:** just filter the synthetic output the same
-   way the real data was filtered (Section 10).
-3. **The discriminator AUC is saturated and cannot grade quality.** Even restricted to the
-   in-band features (where the WGAN is nearly perfect), the AUC is still 1.000. Why? A
-   classifier with many frequency features and thousands of examples can exploit *tiny but
-   consistent* differences to separate the two distributions perfectly — even when they are
-   nearly identical. So "AUC = 1.0" does **not** mean "grossly unrealistic"; it just means
-   "separable." This is a genuine **methodological lesson**: common synthetic-fidelity
-   metrics can be uninformative for judging *how* good a generator is.
+**Finding 4 — the discriminator AUC is saturated and cannot grade fidelity.** Even restricted to
+in-band features it reads 1.000 for both, because a classifier with many features exploits tiny
+consistent offsets. *Methodological lesson: do not judge synthetic-EEG fidelity by a single
+saturating score.*
 
 ---
 
-## 9. Results — Q4, part 2: what the gate actually reacts to
+## 9. Results — Q4(b): what the gate actually reacts to
 
-**Plain-language finding:** we discovered that the gate never used the "realism score"
-(discriminator AUC) at all — that was only a diagnostic we reported. The gate's real
-gatekeeping is whether the **real-trained detector recognises the synthetic windows as
-seizures**. We then measured that recognition directly, and found the fixes from Section 8
-make the synthetic windows much more recognisable as seizures.
+**Correction to our earlier understanding:** the gate does **not** use the discriminator-AUC
+"realism score" (that was only a diagnostic). It keys on whether the **real-trained teacher
+detector recognises the synthetic windows as seizures**. In the core experiment the gate
+reverted because its admission rate was 0 — the teacher scored every synthetic window below the
+confidence it assigns real seizures. The fix must therefore be generator-side.
 
-### 9.1 A correction to how we understood the gate
+We trained a real-only EEGNet teacher (cleanly separating real ictal 0.850 from background
+0.048) and measured its seizure-confidence on synthetic windows, with two fixes: **(1)
+band-limit** the WGAN output to 0.5–40 Hz; **(2)** use the WGAN instead of the cVAE.
 
-In the core experiment we had loosely attributed the gate's refusals to the low
-"discriminator AUC" realism score. Reading the implementation carefully, that is **not**
-what the gate keys on. The gate reverted 100% of the time because its **stage-1 admission
-rate was 0**: the real-only "teacher" detector scored **every** synthetic window below the
-confidence quantile it assigns real seizures. In plain terms: *the detector trained on
-real seizures did not recognise the fake seizures as seizures*. The fix therefore has to
-be generator-side (make the fakes more recognisable), not a change to the realism metric.
-
-### 9.2 Measuring recognisability, with the two fixes
-
-We trained a faithful real-only EEGNet "teacher" on fold 0 (it cleanly separates real
-seizures, mean confidence **0.850**, from background, **0.048**), then measured the
-teacher's seizure-confidence on synthetic windows from three generators. **Fix 1** =
-band-limit the WGAN output to 0.5–40 Hz (remove the out-of-band noise from Section 8).
-**Fix 2** = use the WGAN instead of the cVAE.
-
-| generator | teacher's mean seizure-confidence | admission rate at q=0.90 |
+| generator | teacher's mean seizure-confidence | admission @ q=0.90 |
 |---|---|---|
 | cVAE (β=0.01) | 0.475 | 0.0% |
 | WGAN raw | 0.666 | 1.1% |
 | **WGAN band-limited** | **0.774** | 0.1% |
 | *real seizures (reference)* | *0.850* | — |
 
-And how admission responds to the strictness dial `q`
-(`analysis_tierB/gate_admission_qsweep.csv`; figure `figures/gate_admission.png`):
+Recognisability rises monotonically cVAE < WGAN-raw < WGAN-band-limited → real. The
+pre-registered q=0.90 is very strict (threshold 0.9985, the extreme tail of real-seizure
+confidence), so little is admitted there; relaxing to q=0.50 admits ~17% of band-limited WGAN
+windows — enough to actually augment training.
 
-| q (strictness) | threshold | cVAE | WGAN raw | WGAN band-limited |
+---
+
+## 10. Results — Q4(c): single-fold downstream (fold 0)
+
+Running the full pipeline on fold 0 with the band-limited WGAN: **naive injection harmed all
+three detectors** (e.g. TCN false alarms 12→69/day). The gate protected EEGNet and LCT
+(reverted → real-only). And **one upside cell appeared** — TCN at the pre-registered q=0.90 was
+admitted and improved (event-F1 0.174→0.204, FP 12.4→8.3). That single-seed signal motivated the
+confirmation run below.
+
+---
+
+## 11. Results — Q4(d): multi-seed × multi-fold confirmation (n = 9) — the decisive experiment
+
+**Plain-language finding:** repeating the downstream experiment across **3 folds × 3 seeds =
+9 patient-split × seed cells** per detector, the TCN upside **held and reached statistical
+significance**: admitting the band-limited WGAN synthetic improved TCN by **+0.083 event-F1
+(paired p = 0.008, 8/9 cells)**. But the gate, as pre-registered, is **over-conservative** and
+delivers only part of that benefit. EEGNet is neutral/heterogeneous (not systematically harmed).
+
+*Definitions:* **"augmented"** = the model actually trained on the gate-admitted synthetic
+(measures whether the synthetic *helps*). **"effective"** = what the gate *delivers* (for a
+reverted cell, that is the real-only model). Δ is paired vs real_only within each fold×seed;
+95% CIs are bootstrap; the test is a Wilcoxon signed-rank across the 9 cells.
+
+**TCN (n = 9):**
+
+| condition | mean F1 | Δ vs real_only [95% CI] | helped | Wilcoxon p |
 |---|---|---|---|---|
-| 0.50 | 0.961 | 1.2% | 21.8% | **17.4%** |
-| 0.75 | 0.992 | 0.03% | 6.6% | 2.2% |
-| 0.90 (pre-registered) | 0.9985 | 0.0% | 1.1% | **0.1%** |
+| real_only | 0.191 | — | — | — |
+| ungated (naive) | 0.251 | +0.060 [−0.03, +0.14] | 7/9 | 0.16 |
+| **gated q0.90 — augmented** | 0.275 | **+0.083 [+0.037, +0.132]** | **8/9** | **0.008** |
+| gated q0.90 — effective (deployed) | 0.225 | +0.034 [−0.003, +0.079] | 3/9 | 0.25 |
+| gated q0.50 — augmented | 0.239 | +0.048 [−0.011, +0.111] | 6/9 | 0.25 |
 
-**Discussion.** Recognisability rises monotonically: cVAE (0.475) < WGAN-raw (0.666) <
-WGAN-band-limited (0.774) → approaching real (0.850). Both fixes work as intended: the
-band-limited WGAN's fake seizures look *nearly as seizure-like to the detector as real
-ones*. However, the **pre-registered strictness (q = 0.90) is very demanding** — its
-threshold (0.9985) sits in the extreme top tail of real-seizure confidence — so at that
-setting almost nothing is admitted. Relaxing to `q = 0.50` (the median real-seizure
-confidence) admits a substantial ~17% of the band-limited WGAN's windows, enough to
-actually augment training. (A subtlety: band-limiting *raised* average recognisability but
-slightly *lowered* admission at the extreme q = 0.90, because the strict threshold rewards
-a few very-high-confidence outliers that the raw WGAN happens to produce. This mirrors the
-metric-saturation lesson: the admission rate at extreme strictness is not a clean measure
-of overall quality.)
+**EEGNet (n = 9):**
 
----
+| condition | mean F1 | Δ vs real_only [95% CI] | helped | Wilcoxon p |
+|---|---|---|---|---|
+| real_only | 0.218 | — | — | — |
+| ungated (naive) | 0.252 | +0.034 [−0.04, +0.13] | 5/9 | 0.73 |
+| gated q0.90 — augmented | 0.214 | −0.004 [−0.10, +0.08] | 5/9 | 0.91 |
+| gated q0.90 — effective | 0.229 | +0.011 [0.00, +0.03] | 1/9 | — |
 
-## 10. Results — Q4, part 3: does admitted synthetic data actually help?
+**Three findings.**
 
-**Plain-language finding:** we ran the full detector-training-and-scoring pipeline on fold
-0 with the improved (band-limited WGAN) generator, across all three detectors. Injecting
-synthetic data *naively* harmed **all three** detectors — sometimes badly. The gate
-correctly blocked the harm where the synthetic data was bad. And in **one** case (the TCN
-detector at the pre-registered strictness) the gate **admitted** the synthetic data and the
-detector **improved** on both accuracy and false alarms — the first genuine "upside" case.
-This is encouraging but is a single-seed, single-split result and could be noise.
+- **The synthetic genuinely helps TCN — significantly.** The augmented TCN model improved by
+  **+0.083 event-F1, 8/9 cells, p = 0.008**, with a 95% CI that excludes zero. A good-enough
+  generator (spectrally realistic, diverse, band-limited) produces synthetic seizures that
+  measurably improve a real detector. This is the project's central positive result.
+- **The gate is over-conservative — it leaves benefit on the table.** For TCN it **reverted 56%**
+  of cells at q=0.90, so the *delivered* benefit (+0.034, not significant) is much smaller than
+  the benefit that *exists* (+0.083). The fail-closed gate as pre-registered trades real benefit
+  for its safety guarantee. Loosening the admission/margin criteria is the clear next lever.
+- **Benefit is detector-specific; EEGNet is neutral, not harmed.** EEGNet's augmented delta is
+  ≈0 (coin-flip, 5/9 helped) and it even has upside cells (e.g. fold 2: 0.245→0.346). The earlier
+  impression that "EEGNet is refused 100%" was a two-fold artifact; with all folds it is
+  heterogeneous, and the gate's 100%-safe behaviour (effective ≥ real_only) still holds.
 
-Definitions for the table: **"effective"** columns are what the system actually delivers
-(for a reverted gated cell, that is the real-only model). **"aug"** columns are the model
-that was actually trained on the (admitted) synthetic data — this tells us whether the
-synthetic *would* help, regardless of the gate's decision.
-
-| detector | condition | q | effective F1 | FP/24h | **aug F1** | admitted windows | gate decision |
-|---|---|---|---|---|---|---|---|
-| **EEGNet** | real_only | — | 0.380 | 2.3 | 0.380 | — | — |
-| | ungated (naive) | — | 0.256 | 7.3 | 0.256 | — | injected all |
-| | gated | 0.90 | 0.380 | 2.3 | 0.099 | 25 (0.2%) | **reverted** |
-| | gated | 0.50 | 0.380 | 2.3 | 0.225 | 2508 (17%) | **reverted** |
-| **LCT** | real_only | — | 0.130 | 33.2 | 0.130 | — | — |
-| | ungated (naive) | — | 0.092 | 32.1 | 0.092 | — | injected all |
-| | gated | 0.90 | 0.130 | 33.2 | 0.106 | 202 (1.3%) | **reverted** |
-| | gated | 0.50 | 0.130 | 33.2 | 0.078 | 2508 (17%) | **reverted** |
-| **TCN** | real_only | — | 0.174 | 12.4 | 0.174 | — | — |
-| | ungated (naive) | — | 0.097 | 69.5 | 0.097 | — | injected all |
-| | **gated** | **0.90** | **0.204** | **8.3** | **0.204** | 126 (0.8%) | **ADMITTED** |
-| | gated | 0.50 | 0.174 | 12.4 | 0.229 | 2508 (17%) | reverted |
-
-**Discussion.**
-
-- **Naive injection harms every detector.** EEGNet 0.380 → 0.256; LCT 0.130 → 0.092; TCN
-  0.174 → 0.097 — and TCN's false alarms explode (12 → 69 per day). Even with the *good*
-  (spectrally-realistic, diverse, band-limited) generator, dumping synthetic data into
-  training uncritically is harmful. This strongly reinforces the project's central warning.
-- **The gate prevents harm, and its decision generalises.** For EEGNet and LCT the
-  augmented models are worse (the "aug F1" columns are below real_only), the gate reverts
-  based on **validation**, and that revert is *correct* — it protects **test** performance.
-  This confirms the fail-closed mechanism does what it promises.
-- **The first upside case: TCN at the pre-registered q = 0.90.** The gate admitted a
-  small, high-confidence set of band-limited WGAN windows (126 windows), the augmented
-  model beat the teacher on validation (so it was **not** reverted), and on the held-out
-  **test** set it improved on *both* axes: event-F1 **0.174 → 0.204** and false alarms
-  **12.4 → 8.3 per day**. This is the paper's dream cell — a good-enough generator producing
-  synthetic data that clears the *pre-registered* gate and safely helps.
-- **The gate is conservative, sometimes to a fault.** At q = 0.50, the TCN augmented model
-  *would* have helped on test (0.229 > 0.174), but the gate reverted because the gain did
-  not show up on validation. So the gate both catches harm (good) and can occasionally
-  reject benefit (a cost). Both directions appear within a single detector.
+*(A real-data **positive control** — feeding genuine held-out ictal windows through the gate to
+confirm it admits/keeps clearly-good data and thus is not faulty for EEGNet — is running; results
+to be appended. A Gaussian-noise negative control confirms the gate rejects junk.)*
 
 ---
 
-## 11. Overall discussion — what we have learned
+## 12. Overall discussion
 
-1. **Synthetic ictal augmentation should be treated as a hazard, not a free lunch.** Across
-   the core experiment and the new downstream experiment, naive injection is unreliable and
-   frequently harmful — even when the generator is spectrally realistic and diverse. The
-   "silent harm" this project set out to expose is real and reproducible.
-2. **The fail-closed trust gate is an effective safety mechanism.** It converts an
-   unpredictable, occasionally-harmful intervention into one that is *never worse than doing
-   nothing*, and its validation-based decisions generalise correctly to held-out test
-   patients. For a clinical setting, "never worse" is a valuable guarantee.
-3. **Making the generator good enough is the crux, and standard fidelity metrics can
-   mislead.** The discriminator-AUC "realism score" saturates and cannot distinguish a
-   nearly-perfect generator from a poor one; a diversity metric distinguishes collapse from
-   health; the spectral analysis localises the true, *fixable* defect (out-of-band noise).
-   The practical lesson for the field: **do not judge synthetic-EEG fidelity by a single
-   saturating score.**
-4. **With a better, cleaned-up generator, benefit is possible.** The TCN q = 0.90 cell is
-   the first demonstration that a generator can produce synthetic seizures that clear the
-   pre-registered safety gate *and* improve a real detector. It reframes the project's story
-   from purely cautionary toward "safe *and*, under the right conditions, beneficial."
+1. **Synthetic ictal augmentation is a hazard, not a free lunch** — naive injection is
+   unreliable and frequently harmful, even with a good generator.
+2. **The fail-closed gate is an effective safety mechanism** — it converts an unpredictable,
+   occasionally-harmful intervention into one that is *never worse than doing nothing*, and its
+   validation-based decisions generalise to held-out test patients.
+3. **Standard fidelity metrics mislead** — the discriminator-AUC saturates; diversity and
+   spectral analysis are needed to see real quality differences and locate fixable defects.
+4. **A good-enough generator delivers real, significant benefit (TCN, +0.083, p = 0.008)** — the
+   "safe *and* beneficial" case, not just "safe."
+5. **The current gate under-delivers that benefit** by being too conservative — a concrete,
+   actionable finding: the safety/benefit trade-off is tunable via the admission quantile and
+   fail-closed margin.
 
 ---
 
-## 12. Limitations (read before believing anything positive)
+## 13. Limitations
 
-- **Single seed, single fold for the deep dives (Sections 8–10).** The TCN upside (+0.03
-  event-F1) is comfortably within the between-fold noise observed in the baselines (±0.11
-  standard deviation). **It is a signal to chase, not a result to claim.** It must be
-  reproduced across multiple random seeds and multiple patient folds before it can be
-  believed.
-- **One dataset (CHB-MIT), which is small and dated.** Generality to other populations and
-  recording setups is untested. A second dataset (Siena is scoped; the larger TUH EEG corpus
-  would be stronger) is essential for any strong claim.
-- **The trust gate is adapted from prior work**, not novel; the contribution is its
-  seizure-specific, event-level reformulation and the harm-first evaluation around it.
-- **The improved generator was validated in the frequency domain**, which does not capture
-  every aspect of realism (e.g. fine temporal morphology, cross-channel relationships beyond
-  what we checked).
+- **One dataset (CHB-MIT), small and dated.** Generality is untested; a second dataset (Siena is
+  scoped; the larger TUH corpus would be stronger) is essential for a strong claim.
+- **n = 9 and a single significant comparison.** The TCN augmented result (p = 0.008) survives a
+  modest multiple-comparison correction (~6 comparisons → ~0.05) but should be reported with that
+  caution; it needs replication.
+- **The significant effect is on the *augmented* model, not the deployed gate output.** The
+  deployed (effective) benefit is smaller and not yet significant because the gate is
+  conservative.
+- **High run-to-run nondeterminism** (GPU + tiny event counts) makes single cells noisy — the
+  reason we average over seeds and folds.
+- **The trust gate is adapted from prior work**, not novel; the contribution is the
+  seizure-specific, event-level reformulation, the harm characterisation, and the demonstration
+  that a good generator can clear it and help.
 
 ---
 
-## 13. Conclusions and next steps
+## 14. Conclusions and next steps
 
 **Conclusion.** On unseen patients, seizure detection is far from solved; naive synthetic
-augmentation does not reliably help and can quietly harm; a fail-closed trust gate removes
-that downside; and — for the first time in this project — a stronger, spectrally-realistic,
-band-limited generator produced synthetic data that cleared the pre-registered gate and
-improved one detector. Whether that benefit is real or noise is the pivotal open question.
+augmentation is unreliable and can harm; a fail-closed trust gate removes that downside; and,
+with a spectrally-realistic, band-limited WGAN-GP generator, admitting synthetic seizures
+produced a **statistically significant improvement for the TCN detector (+0.083 event-F1,
+p = 0.008)**. The gate as pre-registered is over-conservative and captures only part of this
+benefit.
 
-**Decisive next experiment.** Repeat the downstream gated experiment across **multiple
-random seeds and all patient folds** (the pre-registration specifies three seeds), and
-report the gated-vs-real_only difference with confidence intervals and a paired
-significance test. This single experiment determines which paper this becomes:
+**Next steps, in priority order:**
+1. **Tune the gate to capture the demonstrated benefit** — relax the admission quantile /
+   fail-closed margin and measure the safety↔benefit trade-off (the delivered +0.034 should move
+   toward the available +0.083 without reintroducing harm).
+2. **Second dataset (Siena / TUH)** for generality — the single biggest lever for publishability.
+3. **Complete the real-data positive control** (in progress) and report it, plus the noise
+   negative control.
+4. **Leave-one-patient-out** validation for a stricter generalisation test.
 
-- If a TCN-style upside **survives** replication → a positive result: *a good-enough
-  generator plus a fail-closed gate can make synthetic augmentation safe and beneficial.*
-- If it **evaporates** under seeds → a clean, rigorous cautionary result: *even a
-  near-realistic generator does not reliably help, and the gate's conservatism is warranted.*
-
-Both outcomes are honest and publishable. Secondary next steps: a second dataset (Siena/TUH)
-for generality, and stricter leave-one-patient-out validation.
-
-**A note on the engineering that made this feasible.** The processed EEG store lives on a
-network filesystem with high per-read latency, which made the full training/validation/test
-pipeline impractically slow. We added an opt-in, per-file **parallel prefetch cache** so the
-pipeline runs from RAM (~40× faster; inert unless activated), and we **band-limit** synthetic
-output using the exact preprocessing filter. Both are small, reusable additions that make the
-multi-seed/multi-fold confirmation runs tractable.
+**Engineering enablers (this round).** The processed store lives on a network filesystem; we
+added an opt-in **full-file signal cache** with parallel prefetch so the pipeline runs from RAM
+(~40× faster; float16 storage to fit a 62 GB container memory limit), and we **band-limit**
+synthetic output with the exact preprocessing filter. Both are small, reusable additions that
+made the multi-seed confirmation tractable.
 
 ---
 
-## 14. Glossary
+## 15. Glossary
 
-- **AUROC / window AUROC** — a 0.5-to-1.0 score for how well the detector separates seizure
-  from non-seizure windows; 0.5 = chance, 1.0 = perfect.
-- **Band-pass filter / band-limit** — keep only frequencies in a chosen range (here
-  0.5–40 Hz), removing slow drift and high-frequency noise.
-- **Class imbalance** — one class (seizure) is vastly rarer than the other (background).
-- **cVAE** — conditional Variational Autoencoder; a stable but blur-prone generator.
-- **Discriminator AUC** — how easily a classifier tells real from synthetic; 0.5 = ideal
-  (indistinguishable), 1.0 = trivially fake.
-- **Diversity ratio / mode collapse** — spread of synthetic samples vs real; near 0 means
-  the generator repeats itself (collapse).
-- **Event-F1 / sensitivity / precision** — event-level accuracy measures (Section 5.4).
-- **Fail-closed** — a safety default: if not proven safe, do nothing.
-- **FP/24h** — false alarms per 24 hours (lower is better).
-- **Ictal** — the seizure state; **inter-ictal** = between seizures (background).
-- **Leakage / patient-independent** — never letting one patient appear in both training and
-  test; required for honest evaluation.
-- **MMD** — Maximum Mean Discrepancy; a distance between two distributions (lower = closer).
-- **Parameters** — the tunable numbers a network learns; a proxy for model capacity.
-- **PSD (power spectrum)** — how signal energy is distributed across frequencies.
-- **Quantile (q)** — the gate's strictness dial; the fraction of real seizures a synthetic
-  window must out-score to be admitted.
-- **Scarcity** — deliberately sub-sampling real seizures (to 100/50/25%) to study
-  data-limited regimes.
-- **Tail risk** — the worst-case outcomes, not the average.
-- **WGAN-GP** — Wasserstein GAN with Gradient Penalty; a sharper but trickier generator.
+- **AUROC / window AUROC** — 0.5–1.0 score for window-level separation of seizure vs non-seizure.
+- **Band-pass / band-limit** — keep only 0.5–40 Hz, removing drift and high-frequency noise.
+- **Class imbalance** — seizures vastly rarer than background.
+- **cVAE / WGAN-GP** — the two generators (autoencoder vs adversarial network).
+- **Discriminator AUC** — how easily real is told from synthetic; 0.5 ideal, 1.0 trivially fake.
+- **Diversity ratio / mode collapse** — synthetic spread vs real; near 0 = generator repeats itself.
+- **Event-F1 / sensitivity / precision** — event-level accuracy measures.
+- **Fail-closed** — if not proven safe, do nothing.
+- **FP/24h** — false alarms per 24 hours (lower better).
+- **Ictal** — the seizure state.
+- **Leakage / patient-independent** — never sharing a patient across train and test.
+- **MMD** — Maximum Mean Discrepancy; distance between two distributions.
+- **augmented vs effective** — model trained on admitted synthetic vs what the gate actually
+  delivers (real-only if it reverts).
+- **PSD** — power spectrum (energy vs frequency).
+- **Quantile q** — gate strictness dial (fraction of real seizures a synthetic window must
+  out-score to be admitted).
+- **Tail risk** — worst-case outcomes, not the average.
+- **Wilcoxon signed-rank test** — a paired significance test used across the fold×seed cells.
 
 ---
 
-## 15. Reproducibility and artifacts
+## 16. Reproducibility and artifacts
 
-All numbers derive from scripts in this repository, run on the public CHB-MIT dataset with
-fixed seeds and pre-registered thresholds.
+All numbers derive from scripts in this repository, on public CHB-MIT, with fixed seeds and
+pre-registered thresholds.
 
 - Preprocessing: `scripts/run_preprocess.py`
 - Core grid (Tiers A/B): `experiments/run_tierA_dev.py`, `experiments/run_tierB_core.py`
-- Generator fidelity: `scripts/gen_wgan_fidelity_diag.py`, `scripts/gen_beta_sweep.py`
-- Spectral-gap diagnostic: `scripts/gen_spectral_gap_diag.py`
-  → `analysis_tierB/spectral_gap.{json,npz}`, `figures/spectral_gap.png`
+- Generator fidelity / spectral gap: `scripts/gen_wgan_fidelity_diag.py`,
+  `scripts/gen_beta_sweep.py`, `scripts/gen_spectral_gap_diag.py`
 - Gate admission re-test + q-sweep: `scripts/gate_admission_retest.py`
-  → `analysis_tierB/gate_admission_retest.csv`, `gate_admission_qsweep.csv`,
-  `figures/gate_admission.png`
-- Downstream gated experiment: `scripts/run_downstream_gated.py`
-  → `analysis_tierB/downstream_gated_bandlimited.csv`
+- Single-fold downstream: `scripts/run_downstream_gated.py`
+- **Multi-seed downstream (n=9): `scripts/run_multiseed_downstream.py`**;
+  analysis: `scripts/analyze_multiseed.py` → `analysis_tierB/downstream_gated_multiseed.csv`,
+  `analysis_tierB/multiseed_summary.csv`
+- Positive control: `scripts/positive_control_gate.py`
 - Band-limiting: `synthetic/band_limit.py`; window cache: `chbmit/datasets.py`
-  (`prefetch_windows`)
-- Trust gate: `synthetic/trust_gate.py`; pre-registered thresholds: `PREREGISTRATION.md`
+  (`prefetch_windows`); trust gate: `synthetic/trust_gate.py`; pre-registration:
+  `PREREGISTRATION.md`
 
-*Bracketed author/course fields in the formal write-up are placeholders to complete before
-submission. Metrics follow the SzCORE event-scoring convention. Deep-dive results
-(Sections 8–10) are fold-0, single-seed and require multi-seed/multi-fold confirmation.*
+*Author/course fields to be completed before submission. Metrics follow the SzCORE convention.
+The n=9 downstream results are single-dataset and require second-dataset / LOPO confirmation.*
