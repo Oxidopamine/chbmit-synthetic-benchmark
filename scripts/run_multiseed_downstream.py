@@ -119,6 +119,14 @@ def main():
     ap.add_argument("--qs", nargs="*", type=float, default=[0.90, 0.50])
     ap.add_argument("--epochs", type=int, default=80)          # detector training epochs
     ap.add_argument("--gen-epochs", type=int, default=300)     # WGAN epochs (matches Tier B)
+    # DataLoader workers. KEEP THIS AT 0 FOR ANY RUN THAT WILL BE COMPARED WITH ANOTHER.
+    # Measured, not assumed (fold 0 / seed 42 / lct / 3 epochs, identical otherwise): going from
+    # 0 to 8 workers is 2.16x faster (1733 s -> 803 s per block) but CHANGES 6 of 7 conditions --
+    # real_only event-F1 0.093776 -> 0.160457, and gate_n_admitted 198 -> 436. With workers,
+    # PyTorch draws a base seed from the global RNG to seed them, which perturbs the same stream
+    # that drives dropout and the shuffle permutation, so a different model is trained. All
+    # published results use 0; this flag exists only for throughput experiments.
+    ap.add_argument("--num-workers", type=int, default=0)
     ap.add_argument("--tag", default="_multiseed")
     ap.add_argument("--no-backup", action="store_true")  # skip git commit/push (for smoke tests)
     args = ap.parse_args()
@@ -131,7 +139,7 @@ def main():
     ev = pd.read_csv(RES / "windows/events.csv")
     sp = json.load(open(RES / "splits/splits_seed42.json"))
     fs = int(zarr.open_group(STORE, mode="r").attrs["sampling_rate"])
-    cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=0)
+    cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=args.num_workers)
 
     # Resume: keep only rows from fully-complete (fold,seed,detector) blocks.
     n_expected = n_conds(args.qs)

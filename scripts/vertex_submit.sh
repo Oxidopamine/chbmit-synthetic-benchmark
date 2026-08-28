@@ -29,6 +29,7 @@ EPOCHS="${EPOCHS:-80}"
 FOLDS="${FOLDS:-0 1 2}"
 SEEDS="${SEEDS:-42 123 2024}"
 QS="${QS:-0.90 0.50}"
+NUM_WORKERS="${NUM_WORKERS:-0}"
 GC="${GC:-gcloud}"
 
 for DET in $DETECTORS; do
@@ -72,6 +73,8 @@ workerPoolSpecs:
           value: "${SEEDS}"
         - name: QS
           value: "${QS}"
+        - name: NUM_WORKERS
+          value: "${NUM_WORKERS}"
 scheduling:
   strategy: SPOT
   restartJobOnWorkerRestart: true

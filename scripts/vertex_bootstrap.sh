@@ -25,6 +25,7 @@ SEEDS="${SEEDS:-42 123 2024}"
 QS="${QS:-0.90 0.50}"
 EPOCHS="${EPOCHS:-80}"
 SYNC_SECS="${SYNC_SECS:-60}"
+NUM_WORKERS="${NUM_WORKERS:-0}"
 
 WORK=/workspace
 RES="$WORK/results_chbmit_synthetic/real_validation"
@@ -134,7 +135,7 @@ cd "$WORK"
 # the GCS sync above replaces it.
 stdbuf -oL -eL python scripts/run_multiseed_downstream.py \
   --folds $FOLDS --seeds $SEEDS --detectors "$DETECTOR" \
-  --qs $QS --epochs "$EPOCHS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
+  --qs $QS --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
 rc=${PIPESTATUS[0]}
 log "driver exit=$rc"
 exit $rc
