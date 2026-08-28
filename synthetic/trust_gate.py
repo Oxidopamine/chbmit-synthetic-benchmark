@@ -40,6 +40,14 @@ class TrustGateConfig:
     fp24h_safety_slack: float = 0.25    # gated val FP/24h must not exceed teacher by > this
     min_admitted: int = 1               # below this, treat as "nothing admitted" (still trains real-only-like)
     score_batch_size: int = 256
+    # Admission reference distribution. "real_ictal" is what this benchmark built (quantile of
+    # the teacher's confidence on REAL training ictal windows); "pool" is the published TGA rule
+    # (a rank cut on the candidate pool itself -- see the verification record Sec 2.1).
+    reference: str = "real_ictal"       # "real_ictal" | "pool"
+    # Which windows to keep once the admitted COUNT is fixed. "random" is the matched-volume
+    # control the parent paper runs: same number of windows, drawn uniformly from the pool.
+    selection: str = "teacher"          # "teacher" | "random"
+    selection_seed: int = 0             # RNG seed for selection="random"
 
 
 def score_windows(model, X: np.ndarray, device: str = "cpu",
@@ -102,12 +110,21 @@ def run_admission(
 ) -> GateAdmission:
     """Stage 1: score the candidate pool, calibrate ``q`` on real ictal, admit top windows."""
     pool_scores = score_windows(teacher_model, pool_windows, device, cfg.score_batch_size)
-    if real_ictal_windows is not None and len(real_ictal_windows):
+    if cfg.reference == "pool":
+        ref_scores = pool_scores
+    elif real_ictal_windows is not None and len(real_ictal_windows):
         ref_scores = score_windows(teacher_model, real_ictal_windows, device, cfg.score_batch_size)
     else:  # fall back to calibrating on the pool itself when no real ictal is available
         ref_scores = pool_scores
     thr = admission_threshold(ref_scores, cfg.q)
     idx = admit_indices(pool_scores, thr, max_keep=target_count)
+
+    # Matched-volume random control: keep the SAME number of windows the teacher would have
+    # admitted, but draw them uniformly from the pool. Isolates selection quality from dose.
+    if cfg.selection == "random" and idx.size:
+        rng = np.random.default_rng(cfg.selection_seed)
+        idx = np.sort(rng.choice(len(pool_scores), size=int(idx.size), replace=False))
+
     n_pool = int(len(pool_scores))
     return GateAdmission(
         threshold=thr,

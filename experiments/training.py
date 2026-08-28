@@ -372,6 +372,11 @@ def _apply_fail_closed(gated_result, gated_sel, spec, gate_info, teacher_result)
     gate = {
         "q": gcfg.q,
         "oversample": gcfg.oversample,
+        # Which gate variant produced this row (see TrustGateConfig): the admission reference
+        # distribution, the selection rule, and the minimum-acceptance safeguard.
+        "reference": gcfg.reference,
+        "selection": gcfg.selection,
+        "min_admitted": gcfg.min_admitted,
         "n_pool": adm.n_pool,
         "n_admitted": adm.n_admitted,
         "n_injected": adm.n_injected,

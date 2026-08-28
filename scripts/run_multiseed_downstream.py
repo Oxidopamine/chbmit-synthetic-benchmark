@@ -5,8 +5,14 @@ The fold-0/single-seed downstream experiment (run_downstream_gated.py) produced 
 the between-fold noise (+/-0.11), so it must be replicated across seeds and folds before
 it can be believed. This runs:
 
-  folds {0,1,2} x seeds {42,123,2024} x detectors {eegnet, tcn}
-  x conditions {real_only, ungated, gated q=0.90, gated q=0.50}
+  folds {0,1,2} x seeds {42,123,2024} x detectors {eegnet, lct, tcn}
+  x conditions {real_only, class_weighted, classical_aug, ungated,
+                gated q=0.90, gated q=0.50, random_gated q=0.90}
+
+class_weighted and classical_aug are the PRE-REGISTERED harm reference (PREREGISTRATION.md
+Sec 3 registers "the best simple baseline per (fold, seed)", not real_only). random_gated is
+the matched-volume admission control: it injects exactly as many windows as gated q=0.90 but
+draws them uniformly from the same pool, so admission QUALITY is separated from DOSE.
 
 with a band-limited WGAN-GP retrained PER (fold, seed) on that fold's training patients
 (leakage-safe). Reports per-cell event-F1 / FP-24h + gate admission/decision, so the
@@ -51,7 +57,19 @@ GEN_DIR = RES / "generators"
 DEVICE = "cuda"
 FRAC = 1.0
 # Conditions per (fold,seed,detector): (condition_label, q). q=None for non-gated.
-CONDS = [("real_only", None), ("ungated", None), ("gated", 0.90), ("gated", 0.50)]
+CONDS = [("real_only", None), ("class_weighted", None), ("classical_aug", None),
+         ("ungated", None), ("gated", 0.90), ("gated", 0.50), ("random_gated", 0.90)]
+SIMPLE_BASELINES = ("class_weighted", "classical_aug")   # registered harm reference
+RANDOM_GATED_Q = 0.90                                    # control matches the core q
+
+
+def n_conds(qs) -> int:
+    """Rows in a COMPLETE (fold,seed,detector) block for this invocation.
+
+    Derived from --qs rather than len(CONDS) so resume-completeness stays correct if the
+    q grid is changed on the command line (a fixed 7 would never mark a 1-q run complete).
+    """
+    return len([c for c in CONDS if c[0] != "gated"]) + len(qs)
 
 
 def _evt(res):
@@ -68,6 +86,9 @@ def _evt(res):
         "gate_admission_rate": (g or {}).get("admission_rate"),
         "gate_n_admitted": (g or {}).get("n_admitted"),
         "gate_reason": (g or {}).get("reason"),
+        "gate_reference": (g or {}).get("reference"),
+        "gate_selection": (g or {}).get("selection"),
+        "gate_min_admitted": (g or {}).get("min_admitted"),
     }
 
 
@@ -90,7 +111,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--folds", nargs="*", type=int, default=[0, 1, 2])
     ap.add_argument("--seeds", nargs="*", type=int, default=[42, 123, 2024])
-    ap.add_argument("--detectors", nargs="*", default=["eegnet", "tcn"])
+    ap.add_argument("--detectors", nargs="*", default=["eegnet", "lct", "tcn"])
     ap.add_argument("--qs", nargs="*", type=float, default=[0.90, 0.50])
     ap.add_argument("--epochs", type=int, default=80)          # detector training epochs
     ap.add_argument("--gen-epochs", type=int, default=300)     # WGAN epochs (matches Tier B)
@@ -109,15 +130,17 @@ def main():
     cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=0)
 
     # Resume: keep only rows from fully-complete (fold,seed,detector) blocks.
+    n_expected = n_conds(args.qs)
     rows = []
     done_blocks = set()
     if out_csv.exists():
         prev = pd.read_csv(out_csv)
         for (fo, se, det), grp in prev.groupby(["fold", "seed", "detector"]):
-            if len(grp) >= len(CONDS):
+            if len(grp) >= n_expected:
                 rows.extend(grp.to_dict("records"))
                 done_blocks.add((int(fo), int(se), str(det)))
-        print(f"[resume] {len(done_blocks)} complete blocks loaded from {out_csv}", flush=True)
+        print(f"[resume] {len(done_blocks)} complete blocks loaded from {out_csv} "
+              f"({n_expected} conditions per block)", flush=True)
 
     for fold in args.folds:
         f = sp["folds"][fold]
@@ -186,6 +209,11 @@ def main():
                 teacher_model = teacher_res.pop("model", None)
                 rows.append({**base, "condition": "real_only", "q": None, **_evt(teacher_res)})
 
+                # Registered simple baselines -- generator-independent, no synthetic injected.
+                for simple in SIMPLE_BASELINES:
+                    r = run_cell(_spec(simple), index_df, win, ev, STORE, split, cfg=cfg)
+                    rows.append({**base, "condition": simple, "q": None, **_evt(r)})
+
                 r = run_cell(_spec(UNGATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
                              index_df, win, ev, STORE, split, cfg=cfg, synthetic_provider=bl_wgan)
                 rows.append({**base, "condition": "ungated", "q": None, **_evt(r)})
@@ -197,6 +225,16 @@ def main():
                                  teacher_result=copy.deepcopy(teacher_res),
                                  gate_cfg=TrustGateConfig(q=q))
                     rows.append({**base, "condition": "gated", "q": q, **_evt(r)})
+
+                # Matched-volume control: same pool, same teacher, same admitted COUNT as the
+                # q=0.90 sibling (identical seed => identical pool), uniformly random selection.
+                r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
+                             index_df, win, ev, STORE, split, cfg=cfg,
+                             synthetic_provider=bl_wgan, teacher_model=teacher_model,
+                             teacher_result=copy.deepcopy(teacher_res),
+                             gate_cfg=TrustGateConfig(q=RANDOM_GATED_Q, selection="random",
+                                                      selection_seed=seed))
+                rows.append({**base, "condition": "random_gated", "q": RANDOM_GATED_Q, **_evt(r)})
 
                 done_blocks.add((fold, seed, det))
                 pd.DataFrame(rows).to_csv(out_csv, index=False)
