@@ -1,6 +1,28 @@
 # Does Synthetic Ictal EEG Help or Harm Seizure Detection?
 ### A Leakage-Safe, Harm-First Benchmark on CHB-MIT — Comprehensive Report
 
+> ## SUPERSEDED IN PART — read this first (2026-08-28)
+>
+> A full audit retired two of this report's headline claims. **Do not quote them.**
+>
+> 1. *"+0.083 event-F1, p = 0.008, statistically significant"* (this file at the Executive
+>    Summary item 4, the multi-seed section, and the findings list). The direction is real
+>    (8/9 cells) but the significance is not: **Nadeau-Bengio p = 0.135**, 95% CI
+>    **[-0.032, +0.198]**, fold-level p = 0.088, and nothing survives Bonferroni over the
+>    comparisons actually reported. It is also measured against `real_only`, whereas
+>    `PREREGISTRATION.md` §3 registers *the best simple baseline per (fold, seed)* — worth
+>    +0.163 event-F1 for TCN, about twice the claimed effect.
+> 2. *"The gate is over-conservative"* / *"loosening the gate is the clear next lever"*. The
+>    gate is a **false-alarm tail controller** with a weak event-F1 selector: admitted cells
+>    stay within +6.07 FP/24h, blocked ones reach +99.88 (Fisher p = 0.0163 two-sided). The
+>    lever is the admission *reference* and the *selector*, not q.
+>
+> Also: this report's harm rates are all measured against `real_only`, and a reverted cell *is*
+> `real_only`, so its harm is zero **by construction**. Against the registered reference the
+> same cells score harm 1.00 for TCN and LCT.
+>
+> Authority: `the verification record`, then `the phase-0 session report`.
+
 *Machine Learning for Biomedical Signals. Report date: 4 July 2026.*
 *Status: baselines + core experiment complete; generator-fidelity, gate-mechanism, single-fold and **multi-seed × multi-fold (n=9) downstream experiments complete**; a real-data positive-control run is in progress. Single dataset (CHB-MIT); second-dataset and leave-one-patient-out validation pending.*
 
