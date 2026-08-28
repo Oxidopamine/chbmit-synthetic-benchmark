@@ -54,6 +54,21 @@ fetch_dir() {  # fetch_dir <bucket-relative-dir> <local-dir>
     gsutil) gsutil -q -m rsync -r "gs://$BUCKET/$1" "$2" ;;
   esac
 }
+fetch_bulk() {  # fetch_bulk <bucket-relative-dir> <local-dir> -- for the zarr store ONLY.
+  # The store is ~52 GB spread over ~60,000 chunk objects. A FUSE "cp -r" walks those one at a
+  # time and each file costs a round trip, so it takes hours. gcloud/gsutil copy in parallel and
+  # do it in minutes. Prefer a CLI here even when the FUSE mount exists; fall back to FUSE only
+  # if neither CLI is in the image.
+  mkdir -p "$2"
+  if command -v gcloud >/dev/null 2>&1; then
+    gcloud storage rsync -r "gs://$BUCKET/$1" "$2"
+  elif command -v gsutil >/dev/null 2>&1; then
+    gsutil -q -m rsync -r "gs://$BUCKET/$1" "$2"
+  else
+    log "WARNING: no CLI available, falling back to single-threaded FUSE copy - expect hours"
+    cp -r "$MNT/$1/." "$2/"
+  fi
+}
 fetch_file() {  # fetch_file <bucket-relative-file> <local-file>  (non-fatal)
   case $MODE in
     fuse)   [ -f "$MNT/$1" ] && cp "$MNT/$1" "$2" ;;
@@ -78,9 +93,9 @@ tar -xzf repo.tar.gz && rm repo.tar.gz
 log "=== stage results tree (windows/events/splits + cached WGAN checkpoints) ==="
 fetch_dir "real_validation" "$RES"
 
-log "=== stage processed store to LOCAL disk (never read zarr over FUSE) ==="
-fetch_dir "processed_chbmit_real" "$WORK/data/processed_chbmit_real"
-du -sh "$WORK/data/processed_chbmit_real"
+log "=== stage processed store to LOCAL disk (~52 GB / ~60k objects, parallel copy) ==="
+fetch_bulk "processed_chbmit_real" "$WORK/data/processed_chbmit_real"
+log "store staged: $(du -sh "$WORK/data/processed_chbmit_real" | cut -f1), $(find "$WORK/data/processed_chbmit_real" -type f | wc -l) files"
 
 log "=== resume: pull any partial CSV for this tag ==="
 mkdir -p "$RES/analysis_tierB"
