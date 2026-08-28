@@ -1,0 +1,120 @@
+=== downstream_gated_v2.csv ===
+block sizes present: {7: np.int64(27)}  (complete = 7 rows)
+complete blocks: 27   folds [np.int64(0), np.int64(1), np.int64(2)]  seeds [np.int64(42), np.int64(123), np.int64(2024)]  detectors ['eegnet', 'lct', 'tcn']
+registered reference = best of ['real_only', 'class_weighted', 'classical_aug'] per (fold, seed)
+Nadeau-Bengio n_test/n_train over folds [np.int64(0), np.int64(1), np.int64(2)]: 0.3168
+
+===== EEGNET  (n = 9 fold x seed cells) =====
+  real_only event-F1 0.225 | registered-reference event-F1 0.298 (reference arm chosen: {'real_only': np.int64(5), 'class_weighted': np.int64(2), 'classical_aug': np.int64(2)})
+  gated q0.90 vs registered        d -0.080 NB95 [-0.241,+0.082]  p_wil 0.125  p_NB 0.288  p_fold 0.209  (+1/-4 of 9)
+  gated q0.90 vs real_only         d -0.007 NB95 [-0.106,+0.091]  p_wil 1.000  p_NB 0.868  p_fold 0.796  (+1/-1 of 9)
+  gated q0.50 vs registered        d -0.046 NB95 [-0.181,+0.088]  p_wil 0.188  p_NB 0.449  p_fold 0.156  (+1/-4 of 9)
+  gated q0.50 vs real_only         d +0.026 NB95 [-0.122,+0.174]  p_wil 0.750  p_NB 0.697  p_fold 0.636  (+2/-1 of 9)
+  random_gated q0.90 vs registered d -0.074 NB95 [-0.230,+0.082]  p_wil 0.125  p_NB 0.307  p_fold 0.224  (+1/-4 of 9)
+  random_gated q0.90 vs real_only  d -0.002 NB95 [-0.078,+0.075]  p_wil 1.000  p_NB 0.963  p_fold 0.942  (+1/-1 of 9)
+  admit_always q0.90 pool vs registered d -0.077 NB95 [-0.268,+0.115]  p_wil 0.164  p_NB 0.384  p_fold 0.055  (+3/-6 of 9)
+  admit_always q0.90 pool vs real_only d -0.004 NB95 [-0.221,+0.212]  p_wil 1.000  p_NB 0.965  p_fold 0.913  (+5/-4 of 9)
+  admit_always random pool vs registered d -0.053 NB95 [-0.247,+0.140]  p_wil 0.359  p_NB 0.542  p_fold 0.221  (+4/-5 of 9)
+  admit_always random pool vs real_only d +0.019 NB95 [-0.194,+0.232]  p_wil 0.820  p_NB 0.843  p_fold 0.689  (+5/-4 of 9)
+  ungated (all synthetic) vs registered d -0.063 NB95 [-0.258,+0.131]  p_wil 0.203  p_NB 0.473  p_fold 0.048  (+3/-6 of 9)
+  ungated (all synthetic) vs real_only d +0.009 NB95 [-0.190,+0.208]  p_wil 0.910  p_NB 0.921  p_fold 0.712  (+6/-3 of 9)
+  gated q0.90 -> best-baseline vs registered d -0.016 NB95 [-0.098,+0.065]  p_wil 1.000  p_NB 0.659  p_fold 0.475  (+1/-1 of 9)
+  gated q0.90 -> best-baseline vs real_only d +0.056 NB95 [-0.135,+0.248]  p_wil 0.438  p_NB 0.519  p_fold 0.329  (+4/-1 of 9)
+  gated q0.50 -> best-baseline vs registered d -0.021 NB95 [-0.141,+0.099]  p_wil 0.500  p_NB 0.696  p_fold 0.205  (+1/-2 of 9)
+  gated q0.50 -> best-baseline vs real_only d +0.051 NB95 [-0.107,+0.209]  p_wil 0.312  p_NB 0.477  p_fold 0.264  (+4/-1 of 9)
+
+  --- safety-benefit frontier (eegnet, vs registered reference) ---
+  policy                           dF1   dFP/24h  worst dFP   harm
+  always_revert (= real_only)   -0.072     +8.63     +54.59   0.44
+  gated q0.90                   -0.080     +1.85     +54.59   0.44
+  gated q0.50                   -0.046     -5.47     +38.66   0.44
+  random_gated q0.90            -0.074     +1.21     +54.59   0.44
+  admit_always q0.90 pool       -0.077     +7.96     +40.41   0.89
+  admit_always random pool      -0.053     +3.52     +40.41   0.78
+  ungated (all synthetic)       -0.063     +5.05     +50.71   0.78
+  gated q0.90 -> best-baseline  -0.016     -2.49      +0.00   0.11
+  gated q0.50 -> best-baseline  -0.021     -3.84     +11.37   0.22
+
+===== LCT  (n = 9 fold x seed cells) =====
+  real_only event-F1 0.312 | registered-reference event-F1 0.413 (reference arm chosen: {'class_weighted': np.int64(3), 'real_only': np.int64(3), 'classical_aug': np.int64(3)})
+  gated q0.90 vs registered        d -0.095 NB95 [-0.232,+0.042]  p_wil 0.031  p_NB 0.150  p_fold 0.164  (+0/-6 of 9)
+  gated q0.90 vs real_only         d +0.006 NB95 [-0.101,+0.113]  p_wil 1.000  p_NB 0.900  p_fold 0.423  (+1/-1 of 9)
+  gated q0.50 vs registered        d -0.069 NB95 [-0.206,+0.069]  p_wil 0.016  p_NB 0.282  p_fold 0.337  (+0/-7 of 9)
+  gated q0.50 vs real_only         d +0.032 NB95 [-0.074,+0.139]  p_wil 0.500  p_NB 0.504  p_fold 0.446  (+2/-1 of 9)
+  random_gated q0.90 vs registered d -0.086 NB95 [-0.226,+0.054]  p_wil 0.031  p_NB 0.196  p_fold 0.182  (+0/-6 of 9)
+  random_gated q0.90 vs real_only  d +0.015 NB95 [-0.031,+0.061]  p_wil 0.500  p_NB 0.469  p_fold 0.193  (+2/-0 of 9)
+  admit_always q0.90 pool vs registered d -0.124 NB95 [-0.284,+0.036]  p_wil 0.008  p_NB 0.112  p_fold 0.007  (+1/-8 of 9)
+  admit_always q0.90 pool vs real_only d -0.023 NB95 [-0.274,+0.228]  p_wil 0.734  p_NB 0.838  p_fold 0.667  (+4/-5 of 9)
+  admit_always random pool vs registered d -0.147 NB95 [-0.319,+0.024]  p_wil 0.008  p_NB 0.083  p_fold 0.009  (+1/-8 of 9)
+  admit_always random pool vs real_only d -0.046 NB95 [-0.254,+0.161]  p_wil 0.910  p_NB 0.620  p_fold 0.313  (+5/-4 of 9)
+  ungated (all synthetic) vs registered d -0.096 NB95 [-0.248,+0.056]  p_wil 0.039  p_NB 0.183  p_fold 0.049  (+2/-7 of 9)
+  ungated (all synthetic) vs real_only d +0.005 NB95 [-0.213,+0.222]  p_wil 0.910  p_NB 0.962  p_fold 0.946  (+4/-5 of 9)
+  gated q0.90 -> best-baseline vs registered d -0.037 NB95 [-0.159,+0.086]  p_wil 0.500  p_NB 0.508  p_fold 0.423  (+0/-2 of 9)
+  gated q0.90 -> best-baseline vs real_only d +0.064 NB95 [-0.092,+0.220]  p_wil 0.094  p_NB 0.372  p_fold 0.164  (+5/-1 of 9)
+  gated q0.50 -> best-baseline vs registered d -0.006 NB95 [-0.024,+0.013]  p_wil 0.250  p_NB 0.504  p_fold 0.275  (+0/-3 of 9)
+  gated q0.50 -> best-baseline vs real_only d +0.095 NB95 [-0.050,+0.241]  p_wil 0.031  p_NB 0.169  p_fold 0.194  (+6/-1 of 9)
+
+  --- safety-benefit frontier (lct, vs registered reference) ---
+  policy                           dF1   dFP/24h  worst dFP   harm
+  always_revert (= real_only)   -0.101    +16.81     +42.65   0.67
+  gated q0.90                   -0.095    +14.71     +42.65   0.67
+  gated q0.50                   -0.069     +7.30     +42.65   0.67
+  random_gated q0.90            -0.086    +12.05     +42.15   0.67
+  admit_always q0.90 pool       -0.124    +10.03     +37.19   1.00
+  admit_always random pool      -0.147    +26.35     +74.53   0.89
+  ungated (all synthetic)       -0.096     +7.69     +34.20   0.89
+  gated q0.90 -> best-baseline  -0.037     +3.15     +20.37   0.22
+  gated q0.50 -> best-baseline  -0.006     -1.46      +2.78   0.22
+
+===== TCN  (n = 9 fold x seed cells) =====
+  real_only event-F1 0.293 | registered-reference event-F1 0.428 (reference arm chosen: {'class_weighted': np.int64(6), 'real_only': np.int64(2), 'classical_aug': np.int64(1)})
+  gated q0.90 vs registered        d -0.128 NB95 [-0.280,+0.025]  p_wil 0.016  p_NB 0.089  p_fold 0.022  (+0/-7 of 9)
+  gated q0.90 vs real_only         d +0.008 NB95 [-0.027,+0.043]  p_wil 1.000  p_NB 0.624  p_fold 0.423  (+1/-0 of 9)
+  gated q0.50 vs registered        d -0.153 NB95 [-0.310,+0.003]  p_wil 0.016  p_NB 0.054  p_fold 0.067  (+1/-7 of 9)
+  gated q0.50 vs real_only         d -0.018 NB95 [-0.140,+0.104]  p_wil 0.625  p_NB 0.746  p_fold 0.581  (+1/-3 of 9)
+  random_gated q0.90 vs registered d -0.124 NB95 [-0.275,+0.027]  p_wil 0.016  p_NB 0.096  p_fold 0.028  (+0/-7 of 9)
+  random_gated q0.90 vs real_only  d +0.012 NB95 [-0.038,+0.061]  p_wil 0.500  p_NB 0.600  p_fold 0.386  (+2/-0 of 9)
+  admit_always q0.90 pool vs registered d -0.139 NB95 [-0.314,+0.036]  p_wil 0.008  p_NB 0.104  p_fold 0.111  (+1/-8 of 9)
+  admit_always q0.90 pool vs real_only d -0.004 NB95 [-0.228,+0.221]  p_wil 0.820  p_NB 0.970  p_fold 0.959  (+3/-6 of 9)
+  admit_always random pool vs registered d -0.124 NB95 [-0.278,+0.031]  p_wil 0.012  p_NB 0.103  p_fold 0.070  (+1/-8 of 9)
+  admit_always random pool vs real_only d +0.012 NB95 [-0.219,+0.243]  p_wil 1.000  p_NB 0.909  p_fold 0.835  (+4/-5 of 9)
+  ungated (all synthetic) vs registered d -0.161 NB95 [-0.414,+0.093]  p_wil 0.027  p_NB 0.182  p_fold 0.153  (+2/-7 of 9)
+  ungated (all synthetic) vs real_only d -0.025 NB95 [-0.330,+0.279]  p_wil 0.820  p_NB 0.853  p_fold 0.799  (+3/-6 of 9)
+  gated q0.90 -> best-baseline vs registered d -0.007 NB95 [-0.040,+0.025]  p_wil 1.000  p_NB 0.624  p_fold 0.423  (+0/-1 of 9)
+  gated q0.90 -> best-baseline vs real_only d +0.128 NB95 [-0.023,+0.280]  p_wil 0.016  p_NB 0.087  p_fold 0.021  (+7/-0 of 9)
+  gated q0.50 -> best-baseline vs registered d -0.078 NB95 [-0.260,+0.104]  p_wil 0.250  p_NB 0.353  p_fold 0.248  (+1/-3 of 9)
+  gated q0.50 -> best-baseline vs real_only d +0.057 NB95 [-0.150,+0.265]  p_wil 0.250  p_NB 0.540  p_fold 0.217  (+5/-3 of 9)
+
+  --- safety-benefit frontier (tcn, vs registered reference) ---
+  policy                           dF1   dFP/24h  worst dFP   harm
+  always_revert (= real_only)   -0.135     +7.99     +20.96   0.78
+  gated q0.90                   -0.128     +7.51     +20.96   0.78
+  gated q0.50                   -0.153     +2.19     +20.96   0.78
+  random_gated q0.90            -0.124     +6.26     +17.55   0.78
+  admit_always q0.90 pool       -0.139    +17.66     +41.05   1.00
+  admit_always random pool      -0.124    +27.57     +49.83   1.00
+  ungated (all synthetic)       -0.161    +30.10     +78.27   1.00
+  gated q0.90 -> best-baseline  -0.007     +0.90      +8.08   0.11
+  gated q0.50 -> best-baseline  -0.078     -3.41     +14.41   0.33
+
+=== (d) what the gate controls: admitted vs reverted cells ===
+    (all gated-family cells pooled; delta = AUGMENTED model - real_only)
+  admitted  n= 21  mean dFP/24h   -22.58  median   -26.34  worst   +15.28  mean dF1 +0.031
+  reverted  n= 60  mean dFP/24h   +10.90  median   +13.83  worst   +62.63  mean dF1 -0.025
+  all p-values below are TWO-SIDED (halve them for the one-sided form; the verification record Sec 3.3 quotes the one-sided values)
+  dFP/24h  Mann-Whitney p = 0.0000   within-fold permutation p = 0.0000 (obs diff -33.48)
+  tail dFP/24h > +20: admitted 0/21, reverted 23/60  Fisher p = 0.0004
+  dF1      Mann-Whitney p = 0.0917  (the axis the gate does NOT reliably select on)
+
+  by the gate's stated reason:
+    admitted                         n= 21  mean dFP/24h   -22.58  max   +15.28
+    no_synthetic_admitted            n=  2  mean dFP/24h    +2.71  max    +2.71
+    val_event_f1_below_margin        n= 39  mean dFP/24h   +10.84  max   +62.63
+    val_fp24h_exceeds_safety_slack   n= 19  mean dFP/24h   +11.89  max   +27.27
+
+=== multiple comparisons: 48 paired tests reported ===
+  Bonferroni threshold for alpha=0.05: p < 0.0010; comparisons meeting it: 0 on Wilcoxon, 0 on Nadeau-Bengio
+  comparisons with uncorrected-for-multiplicity p_NB < 0.05: 0
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_v2_summary.csv
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_v2_frontier.csv
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_v2_gate_tail.csv
