@@ -1,6 +1,7 @@
 """Event-level fail-closed trust gate for synthetic ictal augmentation (v5.3 Sec 3.1, 5).
 
-This is an ADAPTATION of fail-closed trust-gated augmentation (TGA, bioRxiv 2026) to
+This is an ADAPTATION of fail-closed trust-gated augmentation (TGA: Choi, Yip, Choi & Park,
+*npj Digital Medicine* 9(1) 634, 2026, ``10.1038/s41746-026-02778-0``, PMID 42185473) to
 the seizure-specific, event-level setting. It is *not* proposed here as novel; the
 contributions of this benchmark are the seizure-specific event-level reformulation of
 the admission/fail-closed criteria and the harm characterization the gate is meant to
@@ -8,9 +9,17 @@ address (see ``PREREGISTRATION.md``). The gate has two stages:
 
 1. **Admission (window-level).** Score every candidate synthetic ictal window with the
    real-only detector teacher (its seizure-class probability) and admit only windows
-   whose teacher confidence is at least the ``q``-quantile of the teacher's confidence
-   on the *real* training ictal windows. High ``q`` => stricter admission. This ties
-   admission to the real manifold (TGA's covariance-manifold audit motivation).
+   whose teacher confidence is at least the ``q``-quantile of a reference distribution.
+   High ``q`` => stricter admission.
+
+   The reference is the *real* training ictal windows (``reference="real_ictal"``, as this
+   benchmark was built) or the candidate pool itself (``reference="pool"``, the rank cut TGA
+   actually publishes). **Nothing here computes a manifold distance** -- the criterion is the
+   teacher detector's seizure confidence and nothing else. TGA's covariance-manifold audit is
+   a separate, unimplemented component; do not describe this gate as enforcing it. The
+   real-ictal reference is also badly conditioned in practice, because the teacher saturates
+   on real ictal: q 0.50 -> 0.90 moves the threshold by 0.037 and changes admission 174x, and
+   q = 0.99 admits nothing at all (``the verification record`` §2.1).
 
 2. **Fail-closed selection (event-level).** After training the augmented detector on
    real + admitted synthetic, compare its VALIDATION event-F1 / FP-24h to the real-only

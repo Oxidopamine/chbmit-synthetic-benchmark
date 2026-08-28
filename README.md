@@ -6,7 +6,8 @@ patients in ways that *mean window metrics hide*? We characterize that harm at t
 clinically relevant **event level** (false-alarm inflation, event-sensitivity loss,
 worst-fold degradation, tail risk), map where it depends on the **generator** and the
 **detector**, and test whether a **fail-closed trust gate** — *adapted* from prior
-subject-shift work (TGA, bioRxiv 2026), not proposed here — removes the harm and at what
+subject-shift work (TGA: Choi et al., *npj Digital Medicine* 9(1) 634, 2026,
+`10.1038/s41746-026-02778-0`), not proposed here — removes the harm and at what
 cost to genuine gains. Implements the v5.3 reframe
 (`chbmit_synthetic_augmentation_reframe_v5_3.md`).
 

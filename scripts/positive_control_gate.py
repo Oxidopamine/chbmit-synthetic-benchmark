@@ -122,6 +122,20 @@ def main():
             def noise(n, s, _shape=real_pool.shape[1:]):
                 return np.random.default_rng(s).standard_normal((n, *_shape)).astype("float32")
 
+            # Prefetch the BASE TRAINING table too. Without this only val/test and the oracle
+            # pool are cached, so run_cell reads every training window over the network on
+            # every epoch (~65 ms/window) and the job sits at GPU 0% for hours. This rebuilds
+            # exactly the table run_cell assembles internally -- same scarcity fraction, same
+            # events, same seeded negative_sample -- so no wrong rows are cached.
+            base_scarce = apply_scarcity_to_windows(train_windows, base_events)
+            base_train = negative_sample(base_scarce, ratio=cfg.background_to_seizure_ratio,
+                                         exclude_seconds=cfg.exclude_seconds_around_seizure,
+                                         seed=seed)
+            prefetch_windows(base_train, STORE, workers=16, dtype="float16")
+            print(f"[{time.time()-t0:5.0f}s] f{fold} s{seed}: base train prefetched "
+                  f"({len(base_train)} windows, {int((base_train['label'] == 1).sum())} ictal)",
+                  flush=True)
+
             for det in args.detectors:
                 def _spec(cond, **kw):
                     return CellSpec(fold=fold, seed=seed, scarcity_fraction=BASE_FRAC,

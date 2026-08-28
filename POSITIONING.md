@@ -9,10 +9,14 @@ on the gate. State the deltas honestly.
 The fail-closed trust gate is **not our invention**. It was introduced as trust-gated
 augmentation (TGA):
 
-> "Fail-closed trust-gated synthetic augmentation governs tail risk under subject shift in
-> EEG", bioRxiv 2026, DOI `10.64898/2026.01.26.701638`.
-> **[VERIFY authors / title / venue / status before submission; mark as preprint if still
-> unreviewed.]**
+> Choi, D.; Yip, C.; Choi, A.; Park, J. (2026). "Trust-gated synthetic EEG augmentation
+> reduces performance drops when generalizing to new patients." *npj Digital Medicine*
+> **9(1), art. 634**, DOI `10.1038/s41746-026-02778-0`, 25 May 2026, PMID 42185473.
+
+This is the **version of record**, confirmed at Crossref and Europe PMC
+(`the verification record` §2). The bioRxiv preprint
+`10.64898/2026.01.26.701638` is real but superseded; its `published: NA` field is stale and
+is **not** evidence of preprint status. Cite the npj article, not the preprint.
 
 What TGA established (state plainly, do not minimize):
 - The core idea: score synthetic windows with a real-data teacher for label consistency and

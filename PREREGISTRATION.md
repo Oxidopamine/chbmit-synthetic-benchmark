@@ -15,7 +15,8 @@ The machine-readable copy of these constants lives in
 
 Harm to **patient-independent, event-level** seizure detection from training-time synthetic
 ictal augmentation, measured on held-out patients. The trust gate is an *adapted* mitigation
-(from TGA, bioRxiv 2026), not a proposed contribution.
+(from TGA: Choi et al., *npj Digital Medicine* 9(1) 634, 2026,
+`10.1038/s41746-026-02778-0`), not a proposed contribution.
 
 ## 2. Conditions (core grid)
 

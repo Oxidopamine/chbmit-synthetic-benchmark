@@ -128,7 +128,8 @@ quality_checks:
   compute_cross_channel_correlation: true
   real_vs_synthetic_discriminator: true
 
-# Fail-closed trust gate ADAPTED from TGA (bioRxiv 2026) to seizure-specific event-level
+# Fail-closed trust gate ADAPTED from TGA (Choi et al., npj Digit. Med. 9(1) 634, 2026;
+# doi:10.1038/s41746-026-02778-0) to seizure-specific event-level
 # criteria (v5.3 Sec 3.1, 5). Teacher = the real_only detector (reused, not retrained).
 # Values are PRE-REGISTERED in PREREGISTRATION.md; do not tune on the test set.
 trust_gate:
