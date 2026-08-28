@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import subprocess
 import sys
 import time
@@ -49,9 +50,12 @@ from synthetic.trust_gate import TrustGateConfig
 from experiments.training import (
     run_cell, CellSpec, TrainConfig, UNGATED_SYNTHETIC, GATED_SYNTHETIC)
 
-STORE = "data/processed_chbmit_real/eeg.zarr"
-PROC = "data/processed_chbmit_real/processed_index.csv"
-RES = Path("results_chbmit_synthetic/real_validation")
+# Paths are overridable so the same driver runs unchanged on a workstation, a pod, or a
+# Vertex AI custom job (where code and data are staged onto the container's local disk).
+# Defaults reproduce the original behaviour exactly.
+STORE = os.environ.get("CHBMIT_STORE", "data/processed_chbmit_real/eeg.zarr")
+PROC = os.environ.get("CHBMIT_PROC", "data/processed_chbmit_real/processed_index.csv")
+RES = Path(os.environ.get("CHBMIT_RESULTS", "results_chbmit_synthetic/real_validation"))
 OUT = RES / "analysis_tierB"
 GEN_DIR = RES / "generators"
 DEVICE = "cuda"
