@@ -164,3 +164,63 @@ remains is stronger and cleaner than a contested effect size —
 The generator was audited and is not the culprit: no mode collapse (diversity ratio 0.911 of
 real), no memorisation (NN ratio 1.156), correct normalised space, band-limiting effective
 (out-of-band power 0.0093 → 0.0005). See `the execution log`, "DEBUG PASS".
+
+---
+
+# CORRECTION (appended 2026-08-29, same day)
+
+**The Q1 headline above overstates the negative. The registered best-of-3 reference is inflated
+by selection bias, and this analysis selected it on TEST performance.**
+
+Mean event-F1 per arm (n = 9 cells):
+
+| detector | real_only | class_weighted | classical_aug | **best-of-3** |
+|---|---|---|---|---|
+| eegnet | 0.225 | 0.205 | 0.197 | **0.298** |
+| lct | 0.312 | 0.299 | 0.298 | **0.413** |
+| tcn | 0.293 | **0.364** | 0.225 | **0.428** |
+
+For eegnet and lct the best-of-3 reference exceeds **every individual baseline** by 0.07-0.10.
+No baseline is that good; that gap is the max-of-three-noisy-estimates bias. It is the same
+selected-maximum defect `the verification record` §4.2 identifies in the gate's own fail-closed
+selector, reproduced here in the analysis that was auditing it.
+
+**Against single pre-specified baselines** (gated q0.90, Δevent-F1, cells better of 9):
+
+| detector | vs real_only | vs class_weighted | vs classical_aug | vs best-of-3 |
+|---|---|---|---|---|
+| eegnet | −0.007 (1/9) | **+0.013 (5/9)** | **+0.021 (6/9)** | −0.080 (1/9) |
+| lct | +0.006 (1/9) | **+0.019 (4/9)** | **+0.020 (5/9)** | −0.095 (0/9) |
+| tcn | +0.008 (1/9) | **−0.063 (2/9)** | **+0.076 (6/9)** | −0.128 (0/9) |
+
+### Corrected Q1
+
+**Synthetic ictal augmentation is at parity with the simple baselines** — it neither helps nor
+meaningfully harms. The one genuine loss is **TCN vs `class_weighted` (−0.063, 2 of 9)**, where
+`class_weighted` really does reach 0.364 against `real_only`'s 0.293. The "0 of 9 cells better"
+statement holds only against the biased best-of-3 reference and must not be quoted without it.
+
+### What is unaffected
+
+**Q2** (`random_gated` matches `gated` within 0.009) and **Q4** (tail control, Fisher p = 0.0004)
+compare arms against each other, never against a baseline, so neither depends on the reference
+choice. Both stand exactly as reported. Q4 remains the only result surviving multiplicity
+correction.
+
+Q3's conclusion also stands but for a simpler reason than stated above: with all detectors at
+parity there is still no benefit whose heterogeneity needs explaining.
+
+### Consequence for the pre-registration — declare this
+
+`PREREGISTRATION.md` §3 registers the harm reference as "the best simple baseline per
+(fold, seed)". That is a **selected maximum**, and it is optimistically biased by ~0.07-0.10
+event-F1 in this grid. Two fixes, both declarable:
+
+1. Choose the reference arm on **validation**, report its **test** metrics — never select on the
+   metric being reported. This analysis violated that and must be re-run that way; the CSV does
+   not currently carry per-arm validation metrics, so it needs a small emit change.
+2. Report against **each baseline separately** as the primary analysis, with best-of-3 as a
+   clearly-labelled secondary.
+
+This is a genuine methodological finding in its own right: **baseline selection swings the
+apparent effect by more than the effect itself** (±0.13 vs an effect of ~0.01-0.06 here).
