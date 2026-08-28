@@ -26,6 +26,9 @@ MACHINE="${MACHINE:-a2-highgpu-1g}"
 ACCEL="${ACCEL:-NVIDIA_TESLA_A100}"
 DETECTORS="${DETECTORS:-eegnet lct tcn}"
 EPOCHS="${EPOCHS:-80}"
+FOLDS="${FOLDS:-0 1 2}"
+SEEDS="${SEEDS:-42 123 2024}"
+QS="${QS:-0.90 0.50}"
 GC="${GC:-gcloud}"
 
 for DET in $DETECTORS; do
@@ -63,6 +66,12 @@ workerPoolSpecs:
           value: "${TAG}"
         - name: EPOCHS
           value: "${EPOCHS}"
+        - name: FOLDS
+          value: "${FOLDS}"
+        - name: SEEDS
+          value: "${SEEDS}"
+        - name: QS
+          value: "${QS}"
 scheduling:
   strategy: SPOT
   restartJobOnWorkerRestart: true
