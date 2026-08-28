@@ -240,15 +240,35 @@ POLICIES = [
     ("admit_always q0.90 pool",     "gated",     0.90, "aug"),
     ("admit_always random pool",    "random_gated", 0.90, "aug"),
     ("ungated (all synthetic)",     "ungated",   None, "eff"),
+    # Same admission decision, registered-baseline fallback (see policy_metrics).
+    ("gated q0.90 -> best-baseline", "gated",     0.90, "eff_bestbase"),
+    ("gated q0.50 -> best-baseline", "gated",     0.50, "eff_bestbase"),
 ]
 
 
-def policy_metrics(blk, cond, q, mode):
-    """(event_f1, fp_per_24h) for one policy in one block, or (nan, nan) if absent."""
+def policy_metrics(blk, cond, q, mode, ref_row=None):
+    """(event_f1, fp_per_24h) for one policy in one block, or (nan, nan) if absent.
+
+    mode "eff"  -- as deployed by the gate as built: reverted cells carry real_only's metrics.
+    mode "aug"  -- the augmented model regardless of the gate's decision.
+    mode "eff_bestbase" -- the SAME admission decision, but failing closed to the registered
+        best simple baseline instead of to real_only. The gate as built reverts to the teacher
+        (real_only), while PREREGISTRATION.md Sec 3 defines harm against the best simple
+        baseline; when class_weighted beats real_only, every revert silently gives that gap
+        away. Reverting is a deterministic choice among arms already computed for the cell, so
+        this counterfactual needs no retraining.
+    """
     r = cell(blk, cond, q)
     if r is None:
         return float("nan"), float("nan")
     if mode == "aug":
+        return float(r["aug_event_f1"]), float(r["aug_fp_per_24h"])
+    if mode == "eff_bestbase":
+        reverted = bool(r["reverted_to_real_only"]) if r["reverted_to_real_only"] ==             r["reverted_to_real_only"] else False
+        if reverted:
+            if ref_row is None:
+                return float("nan"), float("nan")
+            return float(ref_row["event_f1"]), float(ref_row["fp_per_24h"])
         return float(r["aug_event_f1"]), float(r["aug_fp_per_24h"])
     return float(r["event_f1"]), float(r["fp_per_24h"])
 
@@ -351,7 +371,8 @@ def main():
 
         # ---- (a)+(b) paired deltas against BOTH references, corrected statistics ----
         for label, cond, q, mode in POLICIES[1:]:      # skip always_revert (it IS real_only)
-            vals = np.array([policy_metrics(blk, cond, q, mode) for _, _, blk in blocks])
+            vals = np.array([policy_metrics(blk, cond, q, mode, ref_reg[i])
+                             for i, (_, _, blk) in enumerate(blocks)])
             if np.isnan(vals[:, 0]).all():
                 continue
             f1, fp = vals[:, 0], vals[:, 1]
@@ -367,7 +388,8 @@ def main():
         print(f"\n  --- safety-benefit frontier ({det}, vs {ref_label}) ---")
         print(f"  {'policy':<28s} {'dF1':>7s} {'dFP/24h':>9s} {'worst dFP':>10s} {'harm':>6s}")
         for label, cond, q, mode in POLICIES:
-            vals = np.array([policy_metrics(blk, cond, q, mode) for _, _, blk in blocks])
+            vals = np.array([policy_metrics(blk, cond, q, mode, ref_reg[i])
+                             for i, (_, _, blk) in enumerate(blocks)])
             if np.isnan(vals[:, 0]).all():
                 continue
             d_f1, d_fp = vals[:, 0] - reg_f1, vals[:, 1] - reg_fp
