@@ -30,8 +30,8 @@ from synthetic.cvae_provider import CVAEConfig
 from synthetic.train_provider import build_provider, fit_provider_for_cell
 from synthetic.quality_checks import run_quality_suite
 
-STORE = "/tmp/proc_local/processed_chbmit_real/eeg.zarr"
-PROC = "/tmp/proc_local/processed_chbmit_real/processed_index.csv"
+STORE = "data/processed_chbmit_real/eeg.zarr"
+PROC = "data/processed_chbmit_real/processed_index.csv"
 RES = Path("results_chbmit_synthetic/real_validation")
 EPOCH_GRID = [150, 400, 800, 1500]
 

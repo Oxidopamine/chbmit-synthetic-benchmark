@@ -11,6 +11,42 @@ from typing import Dict, Optional
 import numpy as np
 
 
+def brier_score(y_true, y_score) -> float:
+    """Mean squared error of the predicted probability (lower is better).
+
+    A proper scoring rule, so it moves with both calibration and discrimination. Added
+    because the parent method's most uncomfortable result is a calibration one -- *ungated*
+    augmentation was its best-calibrated arm (Brier 0.359 vs 0.390 real-only) -- and this
+    benchmark could not observe that trade-off at all without it.
+    """
+    y = np.asarray(y_true, dtype=float)
+    p = np.asarray(y_score, dtype=float)
+    if p.size == 0:
+        return float("nan")
+    return float(np.mean((p - y) ** 2))
+
+
+def expected_calibration_error(y_true, y_score, n_bins: int = 15) -> float:
+    """Equal-width-bin ECE: sum over bins of (bin share) x |empirical rate - mean score|.
+
+    Scores are assumed to be probabilities; values outside [0, 1] are clipped for binning
+    only, so an out-of-range score still contributes its true error to the bin gap.
+    """
+    y = np.asarray(y_true, dtype=float)
+    p = np.asarray(y_score, dtype=float)
+    if p.size == 0:
+        return float("nan")
+    edges = np.linspace(0.0, 1.0, n_bins + 1)
+    idx = np.clip(np.digitize(np.clip(p, 0.0, 1.0), edges[1:-1], right=True), 0, n_bins - 1)
+    ece = 0.0
+    for b in range(n_bins):
+        m = idx == b
+        if not m.any():
+            continue
+        ece += (m.sum() / len(p)) * abs(y[m].mean() - p[m].mean())
+    return float(ece)
+
+
 def window_metrics(y_true, y_score, threshold: float = 0.5) -> Dict[str, float]:
     from sklearn.metrics import (
         average_precision_score,
@@ -33,6 +69,9 @@ def window_metrics(y_true, y_score, threshold: float = 0.5) -> Dict[str, float]:
     out["balanced_accuracy"] = float(balanced_accuracy_score(y_true, y_pred))
     out["macro_f1"] = float(f1_score(y_true, y_pred, average="macro", zero_division=0))
     out["kappa"] = float(cohen_kappa_score(y_true, y_pred)) if both else float("nan")
+    # Calibration -- threshold-free, computed from the stored scores.
+    out["brier"] = brier_score(y_true, y_score)
+    out["ece"] = expected_calibration_error(y_true, y_score)
 
     cm = confusion_matrix(y_true, y_pred, labels=[0, 1])
     tn, fp, fn, tp = cm.ravel()

@@ -25,10 +25,15 @@ from synthetic.cvae_provider import CVAEConfig
 from synthetic.train_provider import build_provider, fit_provider_for_cell
 from synthetic.quality_checks import run_quality_suite
 
-STORE = "/tmp/proc_local/processed_chbmit_real/eeg.zarr"
-PROC = "/tmp/proc_local/processed_chbmit_real/processed_index.csv"
+STORE = "data/processed_chbmit_real/eeg.zarr"
+PROC = "data/processed_chbmit_real/processed_index.csv"
 RES = Path("results_chbmit_synthetic/real_validation")
-BETA_GRID = [1.0, 0.5, 0.1, 0.01, 0.001, 0.0]
+# Re-centred for the FIXED ELBO (cvae_provider.py). The old grid
+# [1.0, 0.5, 0.1, 0.01, 0.001, 0.0] was chosen to compensate for the 288x KL
+# over-weighting, so its beta = 0.01 was an EFFECTIVE beta ~ 2.9. Post-fix,
+# beta = 1.0 is the true ELBO and the grid brackets it. This script has NO CLI --
+# edit this line to change the sweep.
+BETA_GRID = [4.0, 1.0, 0.25]
 EPOCHS = 400
 
 

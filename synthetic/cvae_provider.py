@@ -125,8 +125,16 @@ class CVAEProvider(SyntheticProvider):
                 z = mu + std * torch.randn_like(std)
                 cls_idx = torch.zeros(n, dtype=torch.long, device=device)
                 recon = _fix_length(self.dec(z, cls_idx), self.n_samples)
-                recon_loss = F.mse_loss(recon, real, reduction="mean")
-                kl = -0.5 * torch.mean(1 + logvar - mu.pow(2) - logvar.exp())
+                # Both terms must be PER-SAMPLE sums for beta to mean what it says. The old
+                # code averaged reconstruction over N*C*T = N*18*1024 elements but the KL over
+                # N*latent_dim = N*64, over-weighting KL by 18432/64 = 288x -- so a nominal
+                # beta = 1.0 behaved like beta ~ 288 and the model posterior-collapsed. With
+                # this form beta = 1.0 is the true ELBO. (the verification record Sec 4.4.)
+                # Note: the reconstruction term is now ~18432x larger in absolute value. Adam
+                # is approximately invariant to a global loss rescaling, but if the first
+                # epochs diverge, lower cfg.lr rather than reverting this.
+                recon_loss = F.mse_loss(recon, real, reduction="sum") / n
+                kl = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp()) / n
                 loss = recon_loss + cfg.beta * kl
                 opt.zero_grad()
                 loss.backward()
