@@ -1,0 +1,58 @@
+=== downstream_gated_multiseed.csv ===
+block sizes present: {4: np.int64(18)}  (complete = 4 rows)
+complete blocks: 18   folds [np.int64(0), np.int64(1), np.int64(2)]  seeds [np.int64(42), np.int64(123), np.int64(2024)]  detectors ['eegnet', 'tcn']
+registered reference = best of ['real_only'] per (fold, seed)
+  !! MISSING registered baselines: ['class_weighted', 'classical_aug']. The 'registered' reference below degrades to the best of what is present -- deltas are NOT the pre-registered comparison (PREREGISTRATION.md Sec 3).
+Nadeau-Bengio n_test/n_train over folds [np.int64(0), np.int64(1), np.int64(2)]: 0.3168
+
+===== EEGNET  (n = 9 fold x seed cells) =====
+  real_only event-F1 0.218 | registered-reference event-F1 0.218 (reference arm chosen: {'real_only': np.int64(9)})
+  gated q0.90 vs real_only         d +0.011 NB95 [-0.039,+0.062]  p_wil 1.000  p_NB 0.624  p_fold 0.423  (+1/-0 of 9)
+  gated q0.50 vs real_only         d +0.021 NB95 [-0.065,+0.108]  p_wil 0.500  p_NB 0.585  p_fold 0.423  (+2/-0 of 9)
+  admit_always q0.90 pool vs real_only d -0.004 NB95 [-0.225,+0.218]  p_wil 0.910  p_NB 0.970  p_fold 0.964  (+5/-4 of 9)
+  ungated (all synthetic) vs real_only d +0.034 NB95 [-0.184,+0.252]  p_wil 0.734  p_NB 0.728  p_fold 0.490  (+5/-4 of 9)
+
+  --- safety-benefit frontier (eegnet, vs real_only) ---
+  policy                           dF1   dFP/24h  worst dFP   harm
+  always_revert (= real_only)   +0.000     +0.00      +0.00   0.00
+  gated q0.90                   +0.011     -3.37      +0.00   0.00
+  gated q0.50                   +0.021     -0.23      +0.00   0.00
+  admit_always q0.90 pool       -0.004    +15.05     +54.34   0.89
+  ungated (all synthetic)       +0.034     +9.20     +75.75   0.78
+
+===== TCN  (n = 9 fold x seed cells) =====
+  real_only event-F1 0.191 | registered-reference event-F1 0.191 (reference arm chosen: {'real_only': np.int64(9)})
+  gated q0.90 vs real_only         d +0.034 NB95 [-0.070,+0.137]  p_wil 0.250  p_NB 0.475  p_fold 0.192  (+3/-1 of 9)
+  gated q0.50 vs real_only         d +0.017 NB95 [-0.073,+0.108]  p_wil 1.000  p_NB 0.669  p_fold 0.491  (+1/-1 of 9)
+  admit_always q0.90 pool vs real_only d +0.083 NB95 [-0.032,+0.198]  p_wil 0.008  p_NB 0.135  p_fold 0.088  (+8/-1 of 9)
+  ungated (all synthetic) vs real_only d +0.060 NB95 [-0.150,+0.270]  p_wil 0.164  p_NB 0.528  p_fold 0.103  (+7/-2 of 9)
+
+  --- safety-benefit frontier (tcn, vs real_only) ---
+  policy                           dF1   dFP/24h  worst dFP   harm
+  always_revert (= real_only)   +0.000     +0.00      +0.00   0.00
+  gated q0.90                   +0.034     -2.01      +6.07   0.11
+  gated q0.50                   +0.017     -3.35      +0.00   0.11
+  admit_always q0.90 pool       +0.083     +9.43     +40.70   0.56
+  ungated (all synthetic)       +0.060    +13.82    +130.81   0.56
+
+=== (d) what the gate controls: admitted vs reverted cells ===
+    (all gated-family cells pooled; delta = AUGMENTED model - real_only)
+  admitted  n=  9  mean dFP/24h    -8.96  median    -2.00  worst    +6.07  mean dF1 +0.084
+  reverted  n= 27  mean dFP/24h   +19.17  median   +17.28  worst   +99.88  mean dF1 +0.011
+  all p-values below are TWO-SIDED (halve them for the one-sided form; the verification record Sec 3.3 quotes the one-sided values)
+  dFP/24h  Mann-Whitney p = 0.0004   within-fold permutation p = 0.0078 (obs diff -28.13)
+  tail dFP/24h > +20: admitted 0/9, reverted 12/27  Fisher p = 0.0163
+  dF1      Mann-Whitney p = 0.1651  (the axis the gate does NOT reliably select on)
+
+  by the gate's stated reason:
+    admitted                         n=  9  mean dFP/24h    -8.96  max    +6.07
+    no_synthetic_admitted            n=  1  mean dFP/24h   +20.61  max   +20.61
+    val_event_f1_below_margin        n= 20  mean dFP/24h   +15.09  max   +99.88
+    val_fp24h_exceeds_safety_slack   n=  6  mean dFP/24h   +32.54  max   +66.60
+
+=== multiple comparisons: 8 paired tests reported ===
+  Bonferroni threshold for alpha=0.05: p < 0.0063; comparisons meeting it: 0 on Wilcoxon, 0 on Nadeau-Bengio
+  comparisons with uncorrected-for-multiplicity p_NB < 0.05: 0
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_multiseed_summary.csv
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_multiseed_frontier.csv
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_multiseed_gate_tail.csv
