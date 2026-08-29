@@ -46,8 +46,11 @@ def compute_validation_auprc(val_predictions: List[FilePrediction]) -> float:
     every cell, so re-deciding admission is a re-selection among trained arms — but only if the
     statistic was written down at run time.
 
-    Labels follow the sweep's own convention: a window is positive when its center time falls
-    inside a reference event. Returns NaN when validation has only one class.
+    Labels are derived here from ``ref_events`` because ``FilePrediction`` carries no label
+    column. Verified to match the corpus: ``chbmit/window_metadata.py`` sets
+    ``label_rule = "center_in_seizure"``, i.e. a window is positive exactly when its center
+    time lies inside a seizure — the rule used below. If that rule is ever changed from its
+    default, this function must change with it. Returns NaN when validation has only one class.
     """
     ys, ss = [], []
     for p in val_predictions:
