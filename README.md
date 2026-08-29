@@ -34,6 +34,7 @@ intended dose, so it could not have answered the question either way. Details an
 - [Reproducing](#reproducing)
 - [Repository layout](#repository-layout)
 - [Limitations](#limitations)
+- [Budget-constrained scope](#budget-constrained-scope)
 - [Known issues](#known-issues)
 - [Citation](#citation)
 
@@ -509,6 +510,46 @@ Stated plainly, because several of them bound the conclusions:
    generated, which is the convention in this literature but forecloses the label-consistency half
    of the published admission rule.
 8. **Pre-registration deviations** are declared in the verification record §5.
+9. **Dose coverage is bimodal, and the fix is budget-limited.** Realized injection
+   `r = n_admitted / n_train_pos` takes only two values in this grid: `gated q0.90` at
+   **r ≈ 0.032** and `ungated` / `gated q0.50` at **r = 1.00**. Nothing samples
+   **r ∈ [0.05, 0.30]** — the band the parent method's validation ladder actually selects from,
+   whose ceiling is 0.30. Since the dose–performance curve is theoretically U-shaped, the
+   negative result against the simple baselines rests on a single point 3.3× above the source
+   method's explored range.
+
+   The registered fix is a ratio ladder crossed with `{teacher, random}` selection over all three
+   detectors — 486 runs, ~34 GPU-hours, **$250–400**. **That is beyond this project's budget.**
+   The planned replacement is deliberately smaller: **one detector (TCN), two or three rungs**,
+   ~81–108 runs at **$25–45**, with 3 folds × 3 seeds retained so paired power at each rung is
+   not sacrificed. See [Budget-constrained scope](#budget-constrained-scope).
+
+## Budget-constrained scope
+
+This is an unfunded project. Several design choices below were made for **cost**, not because
+the science preferred them, and they are recorded here so readers can discount accordingly
+rather than infer that the smaller design was the intended one.
+
+| what the design calls for | what is affordable | why the reduction is survivable |
+|---|---|---|
+| Ratio ladder × `{teacher, random}` × 3 detectors — 486 runs, ~34 GPU-h, **$250–400** | **1 detector (TCN), 2–3 rungs** — 81–108 runs, ~17–22 GPU-h, **$25–45** | Phase 1's Q3 found all three detector families behave *identically*, so detector heterogeneity is not a live question. The cross-detector replication of the dose curve is genuinely lost |
+| 5 folds | 3 folds | Registered design is 5; folds 3–4 unrun |
+| Scarcity ∈ {1.0, 0.5, 0.25} | 1.0 only | The scarce regimes are where augmentation has most to offer, so this omission is conservative against our own negative result |
+| Second dataset (Siena) | not run | Now a comparability requirement, not reach |
+
+Two deliberate consequences:
+
+1. **3 folds × 3 seeds is retained in every reduced design.** Paired power at each grid point is
+   the one thing not traded away — underpowered comparisons are the failure mode this project has
+   already corrected twice (see `reports/DECISION_GATE_1.md`, CORRECTION 1 and 2). Cutting seeds
+   would be cheaper than cutting detectors and is explicitly rejected.
+2. **[`scripts/gen_w2_dose_prediction.py`](scripts/gen_w2_dose_prediction.py) exists because of
+   this constraint.** It predicts the per-fold dose optimum from W₂(real, synthetic) on **CPU**,
+   off generator checkpoints already in the repository, so the ladder can be *aimed* at two or
+   three rungs rather than swept across five. Roughly $0.30 of compute replacing ~$150 of grid.
+
+None of this changes a reported result. It changes what can be claimed next, and the honest
+statement is that the constraint is financial.
 
 ## Known issues
 
