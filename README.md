@@ -11,6 +11,9 @@ unresolved** — the matched-volume control was run only where the gate injects 
 intended dose, so it could not have answered the question either way. Details and caveats in
 [Results](#results).
 
+**Author:** Abdullah R. Alotaibi ·
+[github.com/Oxidopamine](https://github.com/Oxidopamine/chbmit-synthetic-benchmark)
+
 > **Status.** Phase 1 complete. This repository contains the full experimental record,
 > including two corrections to our own headline analysis (see
 > [Reference selection is not neutral](#reference-selection-is-not-neutral), and CORRECTION 2 in
@@ -31,6 +34,7 @@ intended dose, so it could not have answered the question either way. Details an
 - [Reproducing](#reproducing)
 - [Repository layout](#repository-layout)
 - [Limitations](#limitations)
+- [Known issues](#known-issues)
 - [Citation](#citation)
 
 ---
@@ -282,8 +286,23 @@ gate's own admit/revert decision (Δ against `real_only`, augmented model):
 - Δevent-F1 separation: **p = 0.092** — weak
 
 The asymmetry is the finding. **The gate is a false-alarm tail controller, not an event-F1
-selector**, and this is the only result in the grid that survives correction for the 48
+selector**, and this is the only result in the grid that survives correction for the 54
 comparisons reported.
+
+**It is not selection on the outcome.** The gate admits partly on *validation* FP/24 h, so
+admitted cells might be expected to show better *test* FP/24 h for trivial reasons. They do not
+need to: only 19 of the 60 reverts fired on the FP criterion, while **39 fired on validation
+event-F1**. Dropping every cell selected on validation FP and re-testing on the remainder — cells
+rejected on a **different metric** — the separation gets *stronger*:
+
+| | n | mean ΔFP\24 h | tail > +20 |
+|---|---|---|---|
+| admitted | 21 | **−22.58** | **0 / 21** |
+| reverted on validation event-F1 | 41 | +10.45 | 16 / 41 |
+
+Mann–Whitney **p = 0.000046**, within-fold permutation **p < 0.0001**, Fisher **p = 0.000494** —
+all clearing Bonferroni. The gate's event-F1 criterion **predicts test false-alarm inflation**, a
+cross-metric, cross-split prediction that selection-on-the-outcome cannot produce.
 
 ### Statistics
 
@@ -486,9 +505,59 @@ Stated plainly, because several of them bound the conclusions:
    of the published admission rule.
 8. **Pre-registration deviations** are declared in the verification record §5.
 
+## Known issues
+
+Three defects found by audit *after* Phase 1 was scored. None is fixed here — fixing them
+requires re-running the grid, which has not been affordable — so they are disclosed instead.
+
+1. **Detector weight initialisation is unseeded, and the condition perturbs the RNG stream.**
+   `build_model` runs before any `torch.manual_seed` (`experiments/training.py:337`; the only
+   seeding is inside `train_model`, after construction), and arms that draw a synthetic pool first
+   reset and advance the stream by an amount that depends on the arm. Conditions in a block
+   therefore start from different initialisations. This is **noise, not bias** — arm means stay
+   unbiased — but it breaks the *pairing*, so paired p-values here are anti-conservative. The
+   gated-family comparisons (`gated q0.50`/`q0.90`/`random_gated`) draw identical pools and so are
+   genuinely init-controlled; deltas against `real_only` and the simple baselines are not. The
+   run-to-run floor at production settings was never measured, so small cross-family deltas — in
+   particular TCN's −0.063 against `class_weighted` — should not be read as established. The
+   tail-control result (Q4) is unaffected in kind: it compares a model's own validation decision
+   against its own test FP. This also qualifies the claim above that within-run comparison is
+   sufficient — the confound lives inside a single run.
+2. **The admission threshold is calibrated on the teacher's own training positives**
+   (`experiments/training.py:326`), which the teacher has memorised, so the reference distribution
+   is pinned near 1.0. This is the mechanism behind the ill-conditioning described in
+   [The trust gate](#the-trust-gate), and it means the gate as run cannot distinguish a
+   low-fidelity generator from a degenerate reference. `TrustGateConfig.reference = "pool"`
+   already implements the published alternative.
+3. **The matched-volume admission control was scored and dosed in ways that could not detect an
+   effect.** It was paired on the *post-revert* `event_f1`, so the 18 of 27 cells where both arms
+   failed closed to the same `real_only` model are identical by construction; it was tested only
+   on event-F1, the axis the gate demonstrably does not act on; and it was run only at q = 0.90,
+   where defect 2 above holds the injected dose to 0.3–13 % of the intended volume. The control
+   itself is correctly built — same pool, same count in 27 of 27 cells, init-matched — so this is
+   a defect in the analysis and the grid point, not in the code. Q2 is therefore **unresolved**,
+   not answered. Full working in
+   [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) CORRECTION 2; the fix (a random
+   control at every q, scored pre-revert on both metrics) is staged in the driver and unrun.
+
+Full analysis, including which Phase 1 claims survive and which do not, is in
+the execution log under *SESSION 2026-08-29 — code audit*.
+
 ## Citation
 
-If you use this benchmark, please cite the source method as well:
+If you use this benchmark, please cite it:
+
+```bibtex
+@software{alotaibi2026chbmitbench,
+  author  = {Alotaibi, Abdullah R.},
+  title   = {Does synthetic ictal {EEG} augmentation help, harm, or neither?
+             A leakage-safe, pre-registered benchmark on {CHB-MIT}},
+  year    = {2026},
+  url     = {https://github.com/Oxidopamine/chbmit-synthetic-benchmark}
+}
+```
+
+and the source method it adapts:
 
 ```bibtex
 @article{choi2026tga,
@@ -509,7 +578,7 @@ CHB-MIT is distributed by PhysioNet under the Open Data Commons Attribution Lice
 
 ## License
 
-Code in this repository is released under the [MIT License](LICENSE).
+Code in this repository is released under the [MIT License](LICENSE), © 2026 Abdullah R. Alotaibi.
 
 CHB-MIT data is **not** redistributed here. Obtain it from
 [PhysioNet](https://physionet.org/content/chbmit/1.0.0/) under its own terms (Open Data Commons
