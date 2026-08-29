@@ -5,15 +5,16 @@ gating for **patient-independent** seizure detection on CHB-MIT, scored at the *
 with SzCORE conventions.
 
 The short answer, at n = 9 paired runs per detector across three architecture families:
-**synthetic ictal augmentation performs at parity with simple baselines; the trust gate's
-admission rule contributes nothing over injecting the same number of random windows; but the
-gate does reliably control the false-alarm tail.** Details and caveats in
+**synthetic ictal augmentation performs at parity with simple baselines, and the gate reliably
+controls the false-alarm tail. Whether the gate's *admission rule* beats a random draw is
+unresolved** — the matched-volume control was run only where the gate injects ~3 % of the
+intended dose, so it could not have answered the question either way. Details and caveats in
 [Results](#results).
 
 > **Status.** Phase 1 complete. This repository contains the full experimental record,
-> including a correction to our own headline analysis (see
-> [Reference selection is not neutral](#reference-selection-is-not-neutral)). Phase 2 is
-> specified but not run.
+> including two corrections to our own headline analysis (see
+> [Reference selection is not neutral](#reference-selection-is-not-neutral), and CORRECTION 2 in
+> [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md)). Phase 2 is specified but not run.
 
 ---
 
@@ -67,7 +68,9 @@ The fail-closed trust gate is **not our invention**. It is adapted from trust-ga
 Our contributions are the **seizure-specific, event-level reformulation** of the admission and
 fail-closed criteria, the **harm characterisation** under a pre-registered definition, and the
 **controls** that the source study left unresolved — notably the matched-volume random-gating
-control, which the TGA authors ran and reported as mixed.
+control, which the TGA authors ran and reported as mixed. That control is implemented and run
+here, but at a dose too small to be informative; it remains unresolved in this benchmark too
+(see [Q2](#q2--does-admission-quality-matter)).
 
 Implementation fidelity to the published method is documented honestly, including where this
 benchmark diverges, in the verification record §2.1. The
@@ -236,19 +239,25 @@ For a rare-event problem this is the expected place for reweighting to win, and 
 
 ### Q2 — Does admission quality matter?
 
-**No.** At matched injection volume — `random_gated` draws exactly as many windows as
-`gated q0.90` from the same pool, verified equal per cell — teacher-confidence selection is
-indistinguishable from a uniform random draw:
+**Unresolved — the Phase 1 test could not have answered this.** The control is built correctly:
+`random_gated` draws exactly as many windows as `gated q0.90` from the same pool, verified equal
+in 27 of 27 cells. But the comparison as originally scored is not informative, for three
+reasons ([`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md), CORRECTION 2):
 
-| detector | `gated q0.90` | `random_gated q0.90` | difference |
-|---|---|---|---|
-| EEGNet | 0.218 | 0.224 | 0.006 |
-| LCT | 0.318 | 0.327 | 0.009 |
-| TCN | 0.301 | 0.305 | 0.004 |
+1. It was scored **after the fail-closed revert**, and in 18 of 27 cells both arms reverted to
+   the same `real_only` model — bit-identical by construction. On the augmented models the
+   detector gaps are 0.023 / 0.024 / 0.016, i.e. **2.6–4.1× larger** than the 0.006 / 0.009 /
+   0.004 first reported, with a per-cell mean \|difference\| of 0.059 event-F1.
+2. It was tested **only on event-F1** — the axis Q4 shows the gate does *not* act on. On FP/24h
+   the two selections differ by +5.0 (EEGNet), −16.3 (LCT) and −9.9 (TCN), mean \|Δ\| 16.2.
+   Sign-inconsistent, so no win for admission — but not "nothing".
+3. It was run **only at q = 0.90**, where the gate admits 0.3–13% of the intended dose (median 8
+   windows of ~2508 for EEGNet). At q = 0.50 the gate admits the full dose and there is no
+   control at all.
 
-All three gaps are an order of magnitude below between-cell spread. Whatever the gate is doing,
-it is not selecting better windows. This is the control the source study reported as mixed; here
-it resolves against admission quality.
+What the grid does support: **at q = 0.90 the admission stage is inert because it admits almost
+nothing** — a fact about threshold calibration, not about whether admission quality can matter.
+The matched-volume control at q = 0.50 is staged in the driver and not yet run.
 
 ### Q3 — Capacity or architecture?
 
@@ -500,9 +509,8 @@ CHB-MIT is distributed by PhysioNet under the Open Data Commons Attribution Lice
 
 ## License
 
-**No license file is present yet.** Without one, default copyright applies and others cannot
-legally reuse this code — add a `LICENSE` before publication. MIT or BSD-3-Clause are the
-conventions for benchmarks of this kind.
+Code in this repository is released under the [MIT License](LICENSE).
 
-CHB-MIT data is not redistributed in this repository; obtain it from PhysioNet under its own
-terms.
+CHB-MIT data is **not** redistributed here. Obtain it from
+[PhysioNet](https://physionet.org/content/chbmit/1.0.0/) under its own terms (Open Data Commons
+Attribution License), and cite it as that page requires.
