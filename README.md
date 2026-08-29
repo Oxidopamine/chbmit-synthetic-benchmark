@@ -237,9 +237,14 @@ baseline (cells better, of 9):
 | LCT | +0.006 (1/9) | +0.019 (4/9) | +0.020 (5/9) |
 | TCN | +0.008 (1/9) | **−0.063 (2/9)** | +0.076 (6/9) |
 
-The single genuine loss is **TCN against `class_weighted`**, where a one-line loss reweighting
+The largest single loss is **TCN against `class_weighted`**, where a one-line loss reweighting
 reaches 0.364 event-F1 at 9.8 FP/24 h versus `real_only`'s 0.293 at 16.9 — better on both axes.
 For a rare-event problem this is the expected place for reweighting to win, and it does.
+
+**Do not call this "the single genuine loss."** Cross-family comparisons are not
+initialisation-controlled (Known issue #1), the run-to-run floor at production settings was never
+measured, and −0.063 is within plausible reach of that unmeasured floor. What is defensible is the
+direction and the mechanism, not the magnitude.
 
 ### Q2 — Does admission quality matter?
 

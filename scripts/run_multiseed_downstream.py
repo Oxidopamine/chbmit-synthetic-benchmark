@@ -7,12 +7,16 @@ it can be believed. This runs:
 
   folds {0,1,2} x seeds {42,123,2024} x detectors {eegnet, lct, tcn}
   x conditions {real_only, class_weighted, classical_aug, ungated,
-                gated q=0.90, gated q=0.50, random_gated q=0.90}
+                gated q=0.90, gated q=0.50, random_gated q=0.90, random_gated q=0.50}
 
 class_weighted and classical_aug are the PRE-REGISTERED harm reference (PREREGISTRATION.md
 Sec 3 registers "the best simple baseline per (fold, seed)", not real_only). random_gated is
-the matched-volume admission control: it injects exactly as many windows as gated q=0.90 but
-draws them uniformly from the same pool, so admission QUALITY is separated from DOSE.
+the matched-volume admission control: it injects exactly as many windows as its gated sibling
+at the same q, but draws them uniformly from the same pool, so admission QUALITY is separated
+from DOSE. It is run at EVERY q -- Phase 1 ran it only at q=0.90, where the gate admits ~3% of
+the intended dose (median 80 of ~2508 windows), so no selection rule could have moved the
+result and the null was underpowered by construction. At q=0.50 the gate admits the full dose,
+which is where the control can actually discriminate.
 
 with a band-limited WGAN-GP retrained PER (fold, seed) on that fold's training patients
 (leakage-safe). Reports per-cell event-F1 / FP-24h + gate admission/decision, so the
@@ -60,30 +64,36 @@ OUT = RES / "analysis_tierB"
 GEN_DIR = RES / "generators"
 DEVICE = "cuda"
 FRAC = 1.0
-# Conditions per (fold,seed,detector): (condition_label, q). q=None for non-gated.
-CONDS = [("real_only", None), ("class_weighted", None), ("classical_aug", None),
-         ("ungated", None), ("gated", 0.90), ("gated", 0.50), ("random_gated", 0.90)]
 SIMPLE_BASELINES = ("class_weighted", "classical_aug")   # registered harm reference
-RANDOM_GATED_Q = 0.90                                    # control matches the core q
+# Conditions run once per (fold,seed,detector) regardless of the q grid. The q-dependent ones
+# are gated x --qs and random_gated x --random-qs, so the block size is computed, not fixed.
+FIXED_CONDS = ("real_only", "class_weighted", "classical_aug", "ungated")
 
 
-def n_conds(qs) -> int:
+def n_conds(qs, random_qs) -> int:
     """Rows in a COMPLETE (fold,seed,detector) block for this invocation.
 
-    Derived from --qs rather than len(CONDS) so resume-completeness stays correct if the
-    q grid is changed on the command line (a fixed 7 would never mark a 1-q run complete).
+    Derived from --qs/--random-qs rather than a literal so resume-completeness stays correct
+    when either q grid is changed on the command line (a fixed 7 would never mark a 1-q run
+    complete, and would wrongly mark a 7-row legacy block complete under a 9-condition grid).
     """
-    return len([c for c in CONDS if c[0] != "gated"]) + len(qs)
+    return len(FIXED_CONDS) + len(qs) + len(random_qs)
 
 
 def _evt(res):
     em = res.get("event_metrics", {}) or {}
     g = res.get("gate")
+    # Validation metrics of the model whose TEST metrics this row reports. Needed so the
+    # harm reference can be chosen on validation and reported on test -- selecting the
+    # reference on the metric being reported is the bias documented in DECISION_GATE_1.md.
+    ts = res.get("threshold_selection", {}) or {}
     aug = (res.get("gated_model_metrics", {}) or {}).get("event_metrics", em) if res.get(
         "reverted_to_real_only") else em
     return {
         "event_f1": em.get("event_f1"), "event_sensitivity": em.get("event_sensitivity"),
         "event_precision": em.get("event_precision"), "fp_per_24h": em.get("fp_per_24h"),
+        "val_event_f1": ts.get("validation_event_f1"),
+        "val_fp_per_24h": ts.get("validation_fp_per_24h"),
         "aug_event_f1": aug.get("event_f1"), "aug_fp_per_24h": aug.get("fp_per_24h"),
         "aug_event_sensitivity": aug.get("event_sensitivity"),
         "reverted_to_real_only": res.get("reverted_to_real_only"),
@@ -117,6 +127,12 @@ def main():
     ap.add_argument("--seeds", nargs="*", type=int, default=[42, 123, 2024])
     ap.add_argument("--detectors", nargs="*", default=["eegnet", "lct", "tcn"])
     ap.add_argument("--qs", nargs="*", type=float, default=[0.90, 0.50])
+    # Matched-volume control per gated arm. Defaults to EVERY q in --qs: Phase 1 ran the control
+    # only at q=0.90, where the gate admits ~3% of the intended dose, so the null it produced was
+    # underpowered by construction -- at q=0.50 the gate admits the full dose and the control can
+    # actually discriminate. See reports/DECISION_GATE_1.md, "CORRECTION 2".
+    ap.add_argument("--random-qs", nargs="*", type=float, default=None,
+                    help="qs to run random_gated at (default: same as --qs)")
     ap.add_argument("--epochs", type=int, default=80)          # detector training epochs
     ap.add_argument("--gen-epochs", type=int, default=300)     # WGAN epochs (matches Tier B)
     # DataLoader workers. KEEP THIS AT 0 FOR ANY RUN THAT WILL BE COMPARED WITH ANOTHER.
@@ -130,6 +146,7 @@ def main():
     ap.add_argument("--tag", default="_multiseed")
     ap.add_argument("--no-backup", action="store_true")  # skip git commit/push (for smoke tests)
     args = ap.parse_args()
+    random_qs = args.qs if args.random_qs is None else args.random_qs
     out_csv = OUT / f"downstream_gated{args.tag}.csv"
     OUT.mkdir(parents=True, exist_ok=True)
 
@@ -142,7 +159,7 @@ def main():
     cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=args.num_workers)
 
     # Resume: keep only rows from fully-complete (fold,seed,detector) blocks.
-    n_expected = n_conds(args.qs)
+    n_expected = n_conds(args.qs, random_qs)
     rows = []
     done_blocks = set()
     if out_csv.exists():
@@ -238,15 +255,19 @@ def main():
                                  gate_cfg=TrustGateConfig(q=q))
                     rows.append({**base, "condition": "gated", "q": q, **_evt(r)})
 
-                # Matched-volume control: same pool, same teacher, same admitted COUNT as the
-                # q=0.90 sibling (identical seed => identical pool), uniformly random selection.
-                r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
-                             index_df, win, ev, STORE, split, cfg=cfg,
-                             synthetic_provider=bl_wgan, teacher_model=teacher_model,
-                             teacher_result=copy.deepcopy(teacher_res),
-                             gate_cfg=TrustGateConfig(q=RANDOM_GATED_Q, selection="random",
-                                                      selection_seed=seed))
-                rows.append({**base, "condition": "random_gated", "q": RANDOM_GATED_Q, **_evt(r)})
+                # Matched-volume control, one per gated arm: same pool, same teacher, same
+                # admitted COUNT as that q's gated sibling (identical seed => identical pool),
+                # uniformly random selection. The control is only matched if it shares the
+                # teacher that set the count, so it must be run in the SAME block as its
+                # sibling -- never bolted onto an earlier run's rows.
+                for q in random_qs:
+                    r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
+                                 index_df, win, ev, STORE, split, cfg=cfg,
+                                 synthetic_provider=bl_wgan, teacher_model=teacher_model,
+                                 teacher_result=copy.deepcopy(teacher_res),
+                                 gate_cfg=TrustGateConfig(q=q, selection="random",
+                                                          selection_seed=seed))
+                    rows.append({**base, "condition": "random_gated", "q": q, **_evt(r)})
 
                 done_blocks.add((fold, seed, det))
                 pd.DataFrame(rows).to_csv(out_csv, index=False)

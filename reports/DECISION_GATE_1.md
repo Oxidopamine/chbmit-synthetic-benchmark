@@ -49,6 +49,12 @@ detector (LCT) that was absent from the original grid.
 
 ## Q2 — Does `random_gated` match `gated`?
 
+> **RETRACTED — see CORRECTION 2 at the end of this file.** The table below is scored *after*
+> the fail-closed revert, so 18 of 27 cells are bit-identical because both arms reverted to the
+> same `real_only` model, not because admission did nothing. On the augmented models the gaps
+> are 2.6–4.1× larger, the FP/24h axis was never tested, and the control was run only at the q
+> where the gate injects ~3% of the intended dose. **Do not quote the 0.009.**
+
 **Yes. Admission adds nothing over dose.** At matched volume (identical `n_admitted`, verified
 per cell), teacher-confidence selection and a uniform random draw are indistinguishable:
 
@@ -126,7 +132,8 @@ dependence, **zero comparisons reach p < 0.05**; the minimum is TCN gated q0.50 
 So the defensible claims are **direction and count**, not significance:
 
 - 0 of 9 cells beat the registered reference for LCT and TCN under the core gated arm
-- `random_gated` matches `gated` to within 0.009 on all three detectors
+- ~~`random_gated` matches `gated` to within 0.009 on all three detectors~~ **RETRACTED, see
+  CORRECTION 2** — that 0.009 is an artifact of scoring after the revert
 - the tail-control separation clears Bonferroni comfortably (Fisher p = 0.0004, permutation p < 0.0001)
 
 The tail result is the only one in the grid strong enough to survive multiplicity correction.
@@ -152,8 +159,10 @@ remains is stronger and cleaner than a contested effect size —
 
 1. **A pre-registered negative result with a controlled explanation.** Synthetic ictal
    augmentation does not beat a one-line class-weighted loss on patient-independent seizure
-   detection, on three detector families, at n = 9 each, with a matched-volume control showing
-   admission quality contributes nothing.
+   detection, on three detector families, at n = 9 each. ~~with a matched-volume control showing
+   admission quality contributes nothing~~ — **that half is withdrawn by CORRECTION 2**; the
+   matched-volume control was run at a ~3% dose and cannot support a claim about admission
+   quality in either direction.
 2. **A mechanistic finding that survives everything.** The gate governs the false-alarm tail
    (0 of 21 admitted cells above +20 FP/24h vs 23 of 60 blocked; Fisher p = 0.0004) and does not
    select for event-F1 (p = 0.092).
@@ -196,9 +205,14 @@ selector, reproduced here in the analysis that was auditing it.
 ### Corrected Q1
 
 **Synthetic ictal augmentation is at parity with the simple baselines** — it neither helps nor
-meaningfully harms. The one genuine loss is **TCN vs `class_weighted` (−0.063, 2 of 9)**, where
+meaningfully harms. The largest single loss is **TCN vs `class_weighted` (−0.063, 2 of 9)**, where
 `class_weighted` really does reach 0.364 against `real_only`'s 0.293. The "0 of 9 cells better"
 statement holds only against the biased best-of-3 reference and must not be quoted without it.
+
+> **Amended.** This was written as "the one genuine loss". Drop that phrasing: cross-family
+> comparisons are not initialisation-controlled (`the project notes`, unseeded-init defect; `README.md`
+> Known issue #1) and the run-to-run floor at 80 epochs was never measured, so −0.063 cannot be
+> separated from noise. The direction is defensible; the magnitude is not.
 
 ### What is unaffected
 
@@ -206,6 +220,10 @@ statement holds only against the biased best-of-3 reference and must not be quot
 compare arms against each other, never against a baseline, so neither depends on the reference
 choice. Both stand exactly as reported. Q4 remains the only result surviving multiplicity
 correction.
+
+> **Amended by CORRECTION 2.** Correct for Q4, and correct for Q2 *as far as the reference
+> choice goes* — but Q2 does not stand. It fails for an unrelated reason (it is scored after the
+> fail-closed revert, tested on the wrong metric, and run at a ~3% dose). Only Q4 is unaffected.
 
 Q3's conclusion also stands but for a simpler reason than stated above: with all detectors at
 parity there is still no benefit whose heterogeneity needs explaining.
@@ -224,3 +242,173 @@ event-F1 in this grid. Two fixes, both declarable:
 
 This is a genuine methodological finding in its own right: **baseline selection swings the
 apparent effect by more than the effect itself** (±0.13 vs an effect of ~0.01-0.06 here).
+
+---
+
+# CORRECTION 2 (appended 2026-08-29, same day)
+
+**The Q2 null is confounded and underpowered. "Admission adds nothing over dose" is not
+supported by this grid, and CORRECTION 1's claim that Q2 is unaffected was right about the
+reference choice and wrong about everything else.** Reproduce with
+`python3 scripts/analyze_multiseed.py --tag _v2`, section **(e)**; machine-readable in
+`analysis_v2_admission.csv`.
+
+## The control itself is sound — this is not a bug
+
+Audited first, because a broken control would be the cheaper explanation:
+
+- **Identical candidate pool.** `experiments/training.py` draws it as
+  `synthetic_provider(6 * n_synth, spec.seed)` and both arms pass the same `spec.seed`, so the
+  two arms score the *same* generated windows.
+- **Identical dose.** `gate_n_admitted` matches between the arms in **27 of 27 cells**
+  (`n_dose_mismatch = 0` in the new output). The volume really is matched.
+- **The random draw is not secretly the teacher's draw.** Expected overlap equals the admission
+  rate, which peaks at **4.0%**; the two admitted sets are effectively disjoint.
+- **The draws are independent across detectors** despite sharing `selection_seed=seed`
+  (numpy's `choice(replace=False)` at different `size` does not produce nested prefixes —
+  checked directly: 0% and 4% overlap, both at chance).
+- **The pairing is init-controlled.** Per `README.md` "Known issues" #1, weight initialisation is
+  unseeded and the condition perturbs the RNG stream, which breaks pairing for deltas against
+  `real_only` — but the gated-family arms draw *identical* pools and so advance the stream
+  identically. `gated` vs `random_gated` is therefore one of the few genuinely paired
+  comparisons in this grid.
+
+The arms are comparable — pool-matched, dose-matched, seed-matched and init-matched, differing
+**only** in which windows were admitted. The defects are in **how the comparison was scored** and
+**where it was run**.
+
+## Defect 1 — scored after the fail-closed revert, so most cells are forced ties
+
+Q2 paired the arms on the post-revert `event_f1`. When both arms fail closed they revert to the
+**same** `real_only` model, so those cells are bit-identical for reasons that have nothing to do
+with admission. Of 27 cells, **19 tie and 18 of those are forced by a shared revert**
+(EEGNet 7, LCT 5, TCN 6). Two-thirds of the sample is pinned to zero before any evidence enters.
+
+Scored on the augmented model instead (`aug_*`, pre-revert — the arms as actually trained):
+
+| detector | Q2 as reported (post-revert) | valid contrast (pre-revert) | factor |
+|---|---|---|---|
+| EEGNet | 0.006 | **0.023** | 4.1× |
+| LCT | 0.009 | **0.024** | 2.6× |
+| TCN | 0.004 | **0.016** | 4.0× |
+
+Per cell, pooled over the 26 cells that received any synthetic at all, mean \|difference\| is
+**0.059 event-F1**, range −0.252 to +0.160. The two selections do not produce the same models.
+The mean is near zero because the differences are large and **sign-inconsistent** — a much
+weaker statement than "indistinguishable within 0.009".
+
+## Defect 2 — tested only on event-F1, the axis Q4 says the gate does not act on
+
+Q4 concludes the gate is "a false-alarm tail controller and **not** an event-F1 selector". Q2
+then tested admission quality on event-F1 alone. On FP/24h (pre-revert, cells with
+`n_admitted > 0`; **negative = teacher selection better**):
+
+| detector | Δ event-F1 (teacher − random) | Δ FP/24h (teacher − random) | mean \|Δ\| FP/24h |
+|---|---|---|---|
+| EEGNet | −0.026 (p_wil 0.047) | **+5.00** (p_wil 0.008) | 5.00 |
+| LCT | +0.024 (p_wil 0.734) | **−16.32** (p_wil 0.250) | 28.01 |
+| TCN | −0.016 (p_wil 1.000) | **−9.91** (p_wil 0.129) | 14.30 |
+
+Pooled mean \|Δ\| is **16.2 FP/24h**. The sign is inconsistent — random is better for EEGNet,
+teacher selection is better for LCT and TCN — so this is *not* a win for admission. But it is
+not "nothing" either, and the original analysis never looked at this axis.
+
+**(e) is its own comparison family: 12 paired tests, Bonferroni threshold p < 0.0042, and
+nothing meets it** (EEGNet FP/24h at p_wil 0.008 is closest and fails). No significance is
+claimed here in either direction.
+
+## Defect 3 — run only at the q where the dose is a rounding error
+
+The gate admits a small fraction of the volume it was asked to inject (`n_synth` = the real
+ictal count ≈ 2508 windows per cell):
+
+| detector | median admitted | share of intended dose |
+|---|---|---|
+| EEGNet | 8 | **0.3%** |
+| TCN | 79 | **3.1%** |
+| LCT | 328 | **13.1%** |
+
+EEGNet cells inject 0, 2, 2, 6, 8, 14, 19, 47 and 115 windows. **No selection rule can be
+distinguished from another at a dose of 2 windows in 2508.** And `random_gated` was run *only*
+at q = 0.90, the arm with the smallest dose. At **q = 0.50 the gate admits the full dose**
+(median 2508 — `max_keep` binds, so the teacher is making a real top-17% selection of the pool),
+and there is **no matched-volume control there at all**. The control was run in the one
+configuration where it could not detect anything.
+
+## Corrected Q2
+
+**The grid does not license "admission adds nothing over dose."** What it licenses is narrower
+and more mechanical:
+
+> At q = 0.90 the admission stage is **inert because it admits ~3% of the intended dose**. That
+> is a fact about threshold calibration — the real-ictal reference and the teacher's saturation
+> on real ictal, already flagged in `synthetic/trust_gate.py`, `the verification record` §2.1 and
+> `README.md` "Known issues" #2 — not a finding about whether admission quality can matter.
+
+Known issue #2 is the direct mechanism here: the threshold is calibrated on the teacher's *own
+training positives*, which it has memorised, so the reference distribution is pinned near 1.0 and
+almost nothing in the synthetic pool clears it. The tiny dose is not incidental to the null — it
+*is* the null. Switching `TrustGateConfig.reference` to `"pool"` (the published TGA rank cut,
+already implemented) is the other way to give the control something to measure.
+
+A separate *a priori* point survives regardless of the data: admitting the **highest**
+teacher-confidence windows selects exactly the examples the teacher already classifies
+correctly — the lowest-gradient, most redundant windows in the pool. A confidence-max rule is
+expected to add little. Even a fully powered version of this test would be evaluating one
+poorly-motivated admission rule, not the concept of admission.
+
+## What must be run
+
+`random_gated` at **q = 0.50**, where the dose is full. The driver now runs a matched-volume
+control for **every** q in `--qs` (new `--random-qs`, defaulting to `--qs`), making the Phase 1
+grid 8 conditions per block instead of 7. **Staged, not run — it needs a GPU and the data
+store, neither of which is currently available.**
+
+**It requires re-running whole blocks, not just the new arm.** The control is matched only if it
+shares the teacher that fixed its admitted count, so bolting a new `random_gated q0.50` row onto
+the existing `_v2` rows — trained by a different teacher in a different environment — would
+produce an unmatched control, the same class of defect this correction is about. `n_conds()`
+therefore counts 8, and legacy 7-row blocks are correctly *not* treated as complete.
+
+## Bookkeeping
+
+The frontier gained `admit_always q0.50 pool` (the teacher-side counterpart that was missing),
+so the primary family is **54 paired tests, not 48**, and the Bonferroni threshold moves from
+p < 0.0010 to **p < 0.0009**. **Nothing meets it on either test, exactly as before** — no
+conclusion in this report changes. `admit_always random pool` is now labelled
+`admit_always random pool q0.90`, since q is no longer implicit.
+
+## What still stands
+
+**Q1, Q3 and Q4 are untouched.** Q4 in particular — the tail-control result — compares admitted
+against reverted cells within the same arm and never uses `random_gated`.
+
+### Q4 also survives the circularity objection (new, and it strengthens the claim)
+
+With Q1 at parity, Q2 unresolved and Q3 vacuous, **Q4 now carries the paper**, so it was worth
+attacking directly. The obvious reviewer objection: the gate admits partly on *validation*
+FP/24h, so of course admitted cells show better *test* FP/24h — selection on the outcome.
+
+The reason breakdown refutes it. Of 60 reverts, only **19** fired on
+`val_fp24h_exceeds_safety_slack`; **39** fired on `val_event_f1_below_margin` and 2 on
+`no_synthetic_admitted`. Dropping every cell selected on validation FP/24h and re-testing on the
+remainder — cells rejected on a **different metric** — the separation not only holds, it is
+stronger than the pooled version:
+
+| | n | mean ΔFP/24h | tail > +20 |
+|---|---|---|---|
+| admitted | 21 | **−22.58** | **0 / 21** |
+| reverted on val event-F1 | 41 | +10.45 | 16 / 41 |
+
+Mann–Whitney **p = 0.000046**, within-fold permutation **p < 0.0001**, Fisher on the tail
+**p = 0.000494**. Both clear the primary family's Bonferroni threshold (p < 0.0009).
+
+So the gate's **event-F1 admission criterion predicts test false-alarm inflation** — a
+cross-metric, cross-split prediction that selection-on-the-outcome cannot produce. This is the
+form of Q4 to quote when challenged, and section (d) of `analyze_multiseed.py` now computes it
+automatically.
+
+The claim to retire everywhere it appears: *`random_gated` matches `gated` to within 0.009,
+therefore admission adds nothing.* It appears in the Q2 section above, in the "defensible
+claims" list, in CORRECTION 1's "What is unaffected", in `README.md`, in `the execution log`, and as a
+decision branch in `the implementation plan`; all have been marked.

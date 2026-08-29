@@ -24,6 +24,16 @@ run_multiseed_downstream.py) and reports, PER DETECTOR, paired statistics over t
     with a within-fold permutation test and a Fisher exact on the tail event delta FP/24h > +20.
     This is the mechanism finding: the gate is a false-alarm tail controller, not an F1 selector.
 
+(e) **Admission quality (gated vs random_gated)** -- the matched-volume control, scored the way
+    it must be scored. The naive version of this comparison pairs the two arms on the POST-REVERT
+    ``event_f1``, but when both arms fail closed they revert to the *same* real_only model, so
+    those cells are bit-identical by construction and drag the mean difference to zero without
+    carrying any evidence about admission. This section therefore pairs on the AUGMENTED model
+    (``aug_*``, pre-revert), reports FP/24h alongside event-F1 -- (d) establishes FP/24h as the
+    axis the gate actually acts on, so testing admission only on event-F1 tests it on the wrong
+    metric -- and prints the forced-tie count and the injected dose so an underpowered null is
+    visible as underpowered rather than read as evidence of no effect.
+
 Works on partial data (only fully-complete (fold,seed,detector) blocks are used), so it can be
 run for an interim read while the experiment is still going.
 """
@@ -55,6 +65,10 @@ HARM_DELTA_EVENT_F1 = -0.01
 HARM_DELTA_FP24H = 0.25
 CVAR_ALPHA = 0.10
 TAIL_FP24H = 20.0          # tail event for the Fisher exact test in (d)
+# Mirrors TrustGateConfig.oversample. Used ONLY to reconstruct the intended synthetic dose for
+# the (e) diagnostic (target = n_pool / oversample); the CSV carries n_pool implicitly as
+# n_admitted / admission_rate. Hardcoded rather than imported so this stays a torch-free script.
+GATE_OVERSAMPLE = 6
 SIMPLE_BASELINES = ["real_only", "class_weighted", "classical_aug"]
 
 
@@ -237,8 +251,11 @@ POLICIES = [
     ("gated q0.90",                 "gated",     0.90, "eff"),
     ("gated q0.50",                 "gated",     0.50, "eff"),
     ("random_gated q0.90",          "random_gated", 0.90, "eff"),
+    ("random_gated q0.50",          "random_gated", 0.50, "eff"),
     ("admit_always q0.90 pool",     "gated",     0.90, "aug"),
-    ("admit_always random pool",    "random_gated", 0.90, "aug"),
+    ("admit_always q0.50 pool",     "gated",     0.50, "aug"),
+    ("admit_always random pool q0.90", "random_gated", 0.90, "aug"),
+    ("admit_always random pool q0.50", "random_gated", 0.50, "aug"),
     ("ungated (all synthetic)",     "ungated",   None, "eff"),
     # Same admission decision, registered-baseline fallback (see policy_metrics).
     ("gated q0.90 -> best-baseline", "gated",     0.90, "eff_bestbase"),
@@ -298,6 +315,113 @@ def describe(delta, folds, ratio, name, detector, ref_name, n_comparisons=None):
     if n_comparisons:
         row["n_comparisons"] = n_comparisons
     return row
+
+
+def admission_quality(df, splits_ratio):
+    """(e) Does teacher-confidence admission beat a uniform draw at the SAME dose?
+
+    Pairs ``gated q`` against ``random_gated q`` cell by cell. Both arms are built from the
+    identical candidate pool (same generator, same seed) and admit the identical NUMBER of
+    windows, so the only thing that differs is WHICH windows -- this is the matched-volume
+    control that isolates admission quality from dose.
+
+    Scored on the augmented model (``aug_*``), NOT on the post-revert ``event_f1``: when both
+    arms fail closed they carry the same real_only test metrics, making the difference exactly
+    zero for reasons that have nothing to do with admission. Both are computed here and the
+    forced-tie count is reported so the difference between them is auditable.
+    """
+    rows = []
+    print("=== (e) admission quality: gated vs random_gated at matched dose ===")
+    print("    paired per (fold,seed) cell; positive mean = TEACHER selection better")
+    print("    'aug' = augmented model (the valid contrast); 'eff' = post-revert (confounded)")
+    for det in sorted(df["detector"].unique()):
+        sub = df[df["detector"] == det]
+        blocks = [(fo, se, blk) for (fo, se), blk in sub.groupby(["fold", "seed"])]
+        folds_v = np.array([fo for fo, _, _ in blocks])
+        qs = sorted({float(q) for q in
+                     df[df["condition"] == "random_gated"]["q"].dropna().unique()})
+        for q in qs:
+            pairs = [(cell(blk, "gated", q), cell(blk, "random_gated", q)) for _, _, blk in blocks]
+            ok = [i for i, (g, r) in enumerate(pairs) if g is not None and r is not None]
+            if not ok:
+                continue
+            g_rows = [pairs[i][0] for i in ok]
+            r_rows = [pairs[i][1] for i in ok]
+            fv = folds_v[ok]
+
+            # Matched-dose sanity: the control is only a control if the counts really match.
+            n_adm = np.array([float(g["gate_n_admitted"]) for g in g_rows])
+            n_adm_r = np.array([float(r["gate_n_admitted"]) for r in r_rows])
+            n_mismatch = int(np.sum(~np.isclose(n_adm, n_adm_r, equal_nan=True)))
+            live = n_adm > 0                       # cells where anything was injected at all
+
+            # Intended dose, reconstructed from n_pool = n_admitted / admission_rate.
+            rate = np.array([float(g["gate_admission_rate"]) for g in g_rows])
+            with np.errstate(divide="ignore", invalid="ignore"):
+                pool = np.where(rate > 0, n_adm / rate, np.nan)
+            target = np.nanmedian(pool) / GATE_OVERSAMPLE if np.isfinite(pool).any() else np.nan
+            dose_pct = 100.0 * np.nanmedian(n_adm) / target if target == target else float("nan")
+
+            rev_g = np.array([bool(g["reverted_to_real_only"]) for g in g_rows])
+            rev_r = np.array([bool(r["reverted_to_real_only"]) for r in r_rows])
+            eff_g = np.array([float(g["event_f1"]) for g in g_rows])
+            eff_r = np.array([float(r["event_f1"]) for r in r_rows])
+            tied = int(np.sum(np.isclose(eff_g, eff_r, atol=1e-12)))
+            forced = int(np.sum(rev_g & rev_r))
+
+            print(f"  {det} q{q:.2f}: n={len(ok)} cells, {int(live.sum())} with n_admitted>0; "
+                  f"dose median {np.nanmedian(n_adm):.0f} of ~{target:.0f} intended "
+                  f"({dose_pct:.1f}%); count mismatches {n_mismatch}")
+            print(f"    post-revert ties {tied}/{len(ok)} cells, of which {forced} are FORCED "
+                  f"(both arms reverted to the same real_only model)")
+
+            for mode in ("aug", "eff"):
+                for metric, higher_better in (("event_f1", True), ("fp_per_24h", False)):
+                    gcol = ("aug_" if mode == "aug" else "") + metric
+                    x = np.array([float(g[gcol]) for g in g_rows])
+                    y = np.array([float(r[gcol]) for r in r_rows])
+                    d = (x - y)[live]               # gated minus random, live cells only
+                    fl = fv[live]
+                    if not len(d):
+                        continue
+                    # Sign convention: positive = teacher better, on BOTH metrics.
+                    d_signed = d if higher_better else -d
+                    _, p_nb = nadeau_bengio(d_signed, splits_ratio)
+                    _, p_fold, _ = fold_level_t(d_signed, fl)
+                    rows.append({
+                        "detector": det, "q": q, "mode": mode, "metric": metric,
+                        "n_cells": len(ok), "n_live": int(live.sum()),
+                        "n_tied_eff": tied, "n_tied_forced_by_revert": forced,
+                        "n_dose_mismatch": n_mismatch,
+                        "median_n_admitted": float(np.nanmedian(n_adm)),
+                        "intended_dose": float(target), "dose_pct_of_intended": float(dose_pct),
+                        "mean_delta_teacher_minus_random": float(np.mean(d)),
+                        "mean_delta_teacher_better_positive": float(np.mean(d_signed)),
+                        "median_delta": float(np.median(d)),
+                        "mean_abs_delta": float(np.mean(np.abs(d))),
+                        "min_delta": float(np.min(d)), "max_delta": float(np.max(d)),
+                        "p_wilcoxon": wilcoxon_p(d_signed),
+                        "p_nadeau_bengio": p_nb, "p_fold_level": p_fold,
+                        "teacher_better_cells": int(np.sum(d_signed > 0)),
+                    })
+                    tag = "  <-- valid contrast" if mode == "aug" else ""
+                    print(f"    [{mode}] {metric:<10s} mean {np.mean(d):+8.3f}  "
+                          f"mean|d| {np.mean(np.abs(d)):7.3f}  "
+                          f"range [{np.min(d):+.3f},{np.max(d):+.3f}]  "
+                          f"p_wil {wilcoxon_p(d_signed):.3f}  p_NB {p_nb:.3f}{tag}")
+    if rows:
+        n_tests = len(rows)
+        thr = 0.05 / n_tests
+        print()
+        print(f"  (e) is its own comparison family: {n_tests} paired tests, "
+              f"Bonferroni alpha=0.05 threshold p < {thr:.4f}")
+        surv = [r for r in rows if r["p_wilcoxon"] < thr]
+        print(f"  meeting it on Wilcoxon: {len(surv)}")
+        for r in surv:
+            print(f"    {r['detector']} q{r['q']:.2f} [{r['mode']}] {r['metric']} "
+                  f"p={r['p_wilcoxon']:.4f}")
+    print()
+    return rows
 
 
 def main():
@@ -456,12 +580,41 @@ def main():
             print(f"  dF1      Mann-Whitney p = "
                   f"{mannwhitney_p(adm['delta_f1_aug'], rev['delta_f1_aug']):.4f}  "
                   f"(the axis the gate does NOT reliably select on)")
+
+            # Non-circular restatement. Cells reverted for `val_fp24h_exceeds_safety_slack` were
+            # selected on validation FP/24h, so their good test FP/24h is partly guaranteed by
+            # the selection rule. Dropping them leaves only cells reverted on validation
+            # event-F1 -- a DIFFERENT metric -- so a surviving separation means the gate's
+            # event-F1 criterion predicts test false-alarm inflation, which selection-on-the-
+            # outcome cannot explain. This is the form of Q4 to quote when challenged.
+            clean = tail[tail["reason"] != "val_fp24h_exceeds_safety_slack"]
+            c_adm, c_rev = clean[~clean["reverted"]], clean[clean["reverted"]]
+            # Only meaningful if some cell actually reverted on val FP -- otherwise `clean` is
+            # the whole table and this would restate (d) verbatim under a stronger label.
+            if len(clean) < len(tail) and len(c_adm) and len(c_rev):
+                gc = (~clean["reverted"]).to_numpy()
+                (ca, cb, cc, cd), p_fc = fisher_tail(clean["delta_fp24h_aug"].to_numpy(), gc)
+                _, p_permc = permutation_within_fold(clean["delta_fp24h_aug"].to_numpy(), gc,
+                                                     clean["fold"].to_numpy(), n_perm=args.n_perm)
+                print(f"  NON-CIRCULAR subset (drops the {len(tail) - len(clean)} cells reverted "
+                      f"on val FP/24h; the rest were reverted on val event-F1):")
+                print(f"    admitted n={len(c_adm)} mean dFP/24h "
+                      f"{c_adm['delta_fp24h_aug'].mean():+.2f}   reverted n={len(c_rev)} mean "
+                      f"{c_rev['delta_fp24h_aug'].mean():+.2f}")
+                print(f"    Mann-Whitney p = "
+                      f"{mannwhitney_p(c_adm['delta_fp24h_aug'], c_rev['delta_fp24h_aug']):.6f}   "
+                      f"within-fold permutation p = {p_permc:.4f}")
+                print(f"    tail dFP/24h > +{TAIL_FP24H:.0f}: admitted {ca}/{ca + cb}, "
+                      f"reverted {cc}/{cc + cd}  Fisher p = {p_fc:.6f}")
         if "reason" in tail:
             print("\n  by the gate's stated reason:")
             for reason, grp in tail.groupby("reason"):
                 print(f"    {str(reason):<32s} n={len(grp):3d}  "
                       f"mean dFP/24h {grp['delta_fp24h_aug'].mean():+8.2f}  "
                       f"max {grp['delta_fp24h_aug'].max():+8.2f}")
+
+    # ------------------------------------------------------- (e) admission quality
+    admission_rows = admission_quality(df, ratio)
 
     # --------------------------------------------------------------------------- outputs
     # Outputs are named after, and written beside, the CSV that produced them -- so pointing
@@ -488,7 +641,8 @@ def main():
               + ("" if not len(surv) else
                  "\n" + surv[["detector", "comparison", "mean_delta",
                               "p_nadeau_bengio"]].to_string(index=False)))
-    for name, obj in (("frontier", frontier), ("gate_tail", tail_rows)):
+    for name, obj in (("frontier", frontier), ("gate_tail", tail_rows),
+                      ("admission", admission_rows)):
         if obj:
             pd.DataFrame(obj).to_csv(outdir / f"{stem}_{name}.csv", index=False)
             written.append(outdir / f"{stem}_{name}.csv")
