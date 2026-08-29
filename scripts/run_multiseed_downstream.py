@@ -6,17 +6,26 @@ the between-fold noise (+/-0.11), so it must be replicated across seeds and fold
 it can be believed. This runs:
 
   folds {0,1,2} x seeds {42,123,2024} x detectors {eegnet, lct, tcn}
-  x conditions {real_only, class_weighted, classical_aug, ungated,
-                gated q=0.90, gated q=0.50, random_gated q=0.90, random_gated q=0.50}
+  x {real_only, class_weighted, classical_aug}                        (inject nothing)
+  x --ratios x {ungated, gated x --qs, random_gated x --random-qs}    (synthetic arms)
+
+Defaults reproduce the Phase 1 grid. The Phase 2 ladder is
+``--ratios 0.02 0.05 0.10 0.20 0.30 --qs 0.90`` (18 conditions per block).
 
 class_weighted and classical_aug are the PRE-REGISTERED harm reference (PREREGISTRATION.md
 Sec 3 registers "the best simple baseline per (fold, seed)", not real_only). random_gated is
 the matched-volume admission control: it injects exactly as many windows as its gated sibling
-at the same q, but draws them uniformly from the same pool, so admission QUALITY is separated
-from DOSE. It is run at EVERY q -- Phase 1 ran it only at q=0.90, where the gate admits ~3% of
-the intended dose (median 80 of ~2508 windows), so no selection rule could have moved the
-result and the null was underpowered by construction. At q=0.50 the gate admits the full dose,
-which is where the control can actually discriminate.
+at the same (q, ratio), but draws them uniformly from the same pool, so admission QUALITY is
+separated from DOSE. Two axes matter and Phase 1 got both wrong:
+
+  q      -- the control ran only at q=0.90, where the gate admits ~3% of the intended dose
+            (median 80 of ~2508 windows), so no selection rule could have moved the result.
+  ratio  -- r was pinned at 1.0, which is 3.3x above the parent method's ladder ceiling of
+            0.30, while gated q=0.90 realises r ~ 0.032. Nothing ever sampled r in
+            [0.05, 0.30], the band the parent actually operates in, so the negative result
+            against the simple baselines is confounded with an out-of-range dose.
+
+See reports/DECISION_GATE_1.md CORRECTION 2 and reports/LITERATURE_AUDIT_2026-08-29.md.
 
 with a band-limited WGAN-GP retrained PER (fold, seed) on that fold's training patients
 (leakage-safe). Reports per-cell event-F1 / FP-24h + gate admission/decision, so the
@@ -65,19 +74,21 @@ GEN_DIR = RES / "generators"
 DEVICE = "cuda"
 FRAC = 1.0
 SIMPLE_BASELINES = ("class_weighted", "classical_aug")   # registered harm reference
-# Conditions run once per (fold,seed,detector) regardless of the q grid. The q-dependent ones
-# are gated x --qs and random_gated x --random-qs, so the block size is computed, not fixed.
-FIXED_CONDS = ("real_only", "class_weighted", "classical_aug", "ungated")
+# Conditions that inject nothing, so they run once per (fold,seed,detector) whatever the grid.
+# Everything else is a synthetic arm crossed with --ratios: ungated, gated x --qs, and
+# random_gated x --random-qs. Block size is therefore computed, never a literal.
+FIXED_CONDS = ("real_only", "class_weighted", "classical_aug")
 
 
-def n_conds(qs, random_qs) -> int:
+def n_conds(qs, random_qs, ratios) -> int:
     """Rows in a COMPLETE (fold,seed,detector) block for this invocation.
 
-    Derived from --qs/--random-qs rather than a literal so resume-completeness stays correct
-    when either q grid is changed on the command line (a fixed 7 would never mark a 1-q run
-    complete, and would wrongly mark a 7-row legacy block complete under a 9-condition grid).
+    Computed from the actual grid so resume-completeness stays correct when any axis changes on
+    the command line. A literal would both fail to mark a reduced run complete and wrongly mark
+    a smaller legacy block complete under a larger grid -- e.g. a 7-row Phase 1 block must NOT
+    count as complete once a random control or a ratio rung is added.
     """
-    return len(FIXED_CONDS) + len(qs) + len(random_qs)
+    return len(FIXED_CONDS) + len(ratios) * (1 + len(qs) + len(random_qs))
 
 
 def _evt(res):
@@ -94,6 +105,10 @@ def _evt(res):
         "event_precision": em.get("event_precision"), "fp_per_24h": em.get("fp_per_24h"),
         "val_event_f1": ts.get("validation_event_f1"),
         "val_fp_per_24h": ts.get("validation_fp_per_24h"),
+        # Threshold-free selector statistic. The fail-closed rule as built compares two maxima
+        # of a 19-point sweep; emitting AUPRC per arm lets the parent's threshold-free rule
+        # (margin 0.01) be evaluated in ANALYSIS instead of costing a second grid.
+        "val_auprc": ts.get("validation_auprc"),
         "aug_event_f1": aug.get("event_f1"), "aug_fp_per_24h": aug.get("fp_per_24h"),
         "aug_event_sensitivity": aug.get("event_sensitivity"),
         "reverted_to_real_only": res.get("reverted_to_real_only"),
@@ -133,6 +148,19 @@ def main():
     # actually discriminate. See reports/DECISION_GATE_1.md, "CORRECTION 2".
     ap.add_argument("--random-qs", nargs="*", type=float, default=None,
                     help="qs to run random_gated at (default: same as --qs)")
+    # Injection ratio r = n_synth / n_train_pos, crossed with every synthetic arm. Default [1.0]
+    # reproduces the Phase 1 grid exactly. The parent method's validation ladder selects r <= 0.30
+    # with a median injection ~58 windows, so r = 1.0 sits 3.3x above its ceiling while gated
+    # q=0.90 realises r ~ 0.032 -- nothing in this benchmark has ever sampled r in [0.05, 0.30],
+    # which is where the parent actually operates. Phase 2 ladder:
+    #   --ratios 0.02 0.05 0.10 0.20 0.30 --qs 0.90
+    # See reports/LITERATURE_AUDIT_2026-08-29.md Sec 2.3 and 5.
+    # DO NOT PASS 0. run_cell floors the count at `max(1, round(r * n_pos))`, so r=0 injects one
+    # window rather than none. The r=0 rung of the ladder is the `real_only` arm, which every
+    # block already runs -- use that in analysis instead.
+    ap.add_argument("--ratios", nargs="*", type=float, default=[1.0],
+                    help="synthetic injection ratios to cross with every synthetic arm "
+                         "(do not pass 0; the r=0 rung is the real_only arm)")
     ap.add_argument("--epochs", type=int, default=80)          # detector training epochs
     ap.add_argument("--gen-epochs", type=int, default=300)     # WGAN epochs (matches Tier B)
     # DataLoader workers. KEEP THIS AT 0 FOR ANY RUN THAT WILL BE COMPARED WITH ANOTHER.
@@ -159,7 +187,7 @@ def main():
     cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=args.num_workers)
 
     # Resume: keep only rows from fully-complete (fold,seed,detector) blocks.
-    n_expected = n_conds(args.qs, random_qs)
+    n_expected = n_conds(args.qs, random_qs, args.ratios)
     rows = []
     done_blocks = set()
     if out_csv.exists():
@@ -243,31 +271,41 @@ def main():
                     r = run_cell(_spec(simple), index_df, win, ev, STORE, split, cfg=cfg)
                     rows.append({**base, "condition": simple, "q": None, **_evt(r)})
 
-                r = run_cell(_spec(UNGATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
-                             index_df, win, ev, STORE, split, cfg=cfg, synthetic_provider=bl_wgan)
-                rows.append({**base, "condition": "ungated", "q": None, **_evt(r)})
-
-                for q in args.qs:
-                    r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
+                # Every synthetic arm is crossed with the injection ratio r. r is the parent
+                # method's real knob (its validation ladder selects r <= 0.30); this grid used to
+                # pin r = 1.0, which is 3.3x above that ceiling, leaving r in [0.05, 0.30]
+                # unsampled -- the coverage hole the negative result currently rests on.
+                for ratio in args.ratios:
+                    rb = {**base, "ratio": ratio}
+                    r = run_cell(_spec(UNGATED_SYNTHETIC, generator="wgan_bl",
+                                       synthetic_ratio=ratio),
                                  index_df, win, ev, STORE, split, cfg=cfg,
-                                 synthetic_provider=bl_wgan, teacher_model=teacher_model,
-                                 teacher_result=copy.deepcopy(teacher_res),
-                                 gate_cfg=TrustGateConfig(q=q))
-                    rows.append({**base, "condition": "gated", "q": q, **_evt(r)})
+                                 synthetic_provider=bl_wgan)
+                    rows.append({**rb, "condition": "ungated", "q": None, **_evt(r)})
 
-                # Matched-volume control, one per gated arm: same pool, same teacher, same
-                # admitted COUNT as that q's gated sibling (identical seed => identical pool),
-                # uniformly random selection. The control is only matched if it shares the
-                # teacher that set the count, so it must be run in the SAME block as its
-                # sibling -- never bolted onto an earlier run's rows.
-                for q in random_qs:
-                    r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl", synthetic_ratio=1.0),
-                                 index_df, win, ev, STORE, split, cfg=cfg,
-                                 synthetic_provider=bl_wgan, teacher_model=teacher_model,
-                                 teacher_result=copy.deepcopy(teacher_res),
-                                 gate_cfg=TrustGateConfig(q=q, selection="random",
-                                                          selection_seed=seed))
-                    rows.append({**base, "condition": "random_gated", "q": q, **_evt(r)})
+                    for q in args.qs:
+                        r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl",
+                                           synthetic_ratio=ratio),
+                                     index_df, win, ev, STORE, split, cfg=cfg,
+                                     synthetic_provider=bl_wgan, teacher_model=teacher_model,
+                                     teacher_result=copy.deepcopy(teacher_res),
+                                     gate_cfg=TrustGateConfig(q=q))
+                        rows.append({**rb, "condition": "gated", "q": q, **_evt(r)})
+
+                    # Matched-volume control, one per gated arm at the SAME ratio: same pool,
+                    # same teacher, same admitted COUNT as that (q, ratio) sibling (identical
+                    # seed => identical pool), uniformly random selection. The control is only
+                    # matched if it shares the teacher that set the count, so it must be run in
+                    # the SAME block as its sibling -- never bolted onto an earlier run's rows.
+                    for q in random_qs:
+                        r = run_cell(_spec(GATED_SYNTHETIC, generator="wgan_bl",
+                                           synthetic_ratio=ratio),
+                                     index_df, win, ev, STORE, split, cfg=cfg,
+                                     synthetic_provider=bl_wgan, teacher_model=teacher_model,
+                                     teacher_result=copy.deepcopy(teacher_res),
+                                     gate_cfg=TrustGateConfig(q=q, selection="random",
+                                                              selection_seed=seed))
+                        rows.append({**rb, "condition": "random_gated", "q": q, **_evt(r)})
 
                 done_blocks.add((fold, seed, det))
                 pd.DataFrame(rows).to_csv(out_csv, index=False)

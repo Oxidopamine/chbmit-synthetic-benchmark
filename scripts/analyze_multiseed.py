@@ -221,12 +221,27 @@ def mannwhitney_p(x, y) -> float:
 
 # --------------------------------------------------------------------------- data access
 
+SELECTED_RATIO = None      # set from --ratio; None means "the CSV has a single ratio"
+
+
 def cell(blk, cond, q=None):
-    """The single row for one condition in one (fold,seed,detector) block, or None."""
-    if q is None:
-        m = blk[(blk["condition"] == cond) & (blk["q"].isna())]
-    else:
-        m = blk[(blk["condition"] == cond) & np.isclose(blk["q"].fillna(-1.0), q)]
+    """The single row for one condition in one (fold,seed,detector) block, or None.
+
+    Raises rather than guessing when more than one row matches. A ratio-ladder CSV carries one
+    row per (condition, q, ratio), so selecting on (condition, q) alone would silently analyse
+    whichever rung happened to be written first -- the same silent-wrong-row failure mode that
+    CORRECTION 1 and CORRECTION 2 were both instances of. Pass --ratio to pick a rung.
+    """
+    m = blk[blk["condition"] == cond]
+    m = m[m["q"].isna()] if q is None else m[np.isclose(m["q"].fillna(-1.0), q)]
+    if SELECTED_RATIO is not None and "ratio" in m.columns:
+        m = m[np.isclose(m["ratio"].fillna(-1.0), SELECTED_RATIO)]
+    if len(m) > 1:
+        seen = sorted(m["ratio"].dropna().unique()) if "ratio" in m.columns else []
+        raise ValueError(
+            f"{len(m)} rows match condition={cond!r} q={q!r} in one block"
+            + (f"; ratios present: {seen}. Pass --ratio to choose one." if seen else
+               "; the CSV has duplicate rows for this condition."))
     return m.iloc[0] if len(m) else None
 
 
@@ -431,7 +446,12 @@ def main():
     ap.add_argument("--conds-expected", type=int, default=CONDS_EXPECTED,
                     help="rows in a complete (fold,seed,detector) block; 4 for legacy files")
     ap.add_argument("--n-perm", type=int, default=20000)
+    ap.add_argument("--ratio", type=float, default=None,
+                    help="injection ratio rung to analyse, for ratio-ladder CSVs "
+                         "(omit when the CSV has a single ratio)")
     args = ap.parse_args()
+    global SELECTED_RATIO
+    SELECTED_RATIO = args.ratio
 
     csv = Path(args.csv) if args.csv else OUT / f"downstream_gated{args.tag}.csv"
     if not csv.exists():

@@ -334,6 +334,13 @@ def run_cell(
         gate_info = {"cfg": gcfg, "admission": adm, "n_synth_target": n_synth}
 
     win_samples = int(windows_df["end_sample"].iloc[0] - windows_df["start_sample"].iloc[0])
+    # Seed IMMEDIATELY before construction. The only other seeding is inside train_model, which
+    # runs after the model already exists, so weight init used to consume whatever RNG state the
+    # condition happened to leave behind -- and conditions that draw a synthetic pool first
+    # advance that stream by an arm-dependent amount. Arms in a block therefore started from
+    # different inits, which is noise rather than bias for arm means but breaks the PAIRING that
+    # every paired test in this project relies on. See README.md "Known issues" #1.
+    torch.manual_seed(spec.seed)
     model = build_model(spec.detector, n_channels=index_df_n_channels(store),
                         n_samples=win_samples, **model_kwargs)
 
