@@ -47,11 +47,23 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 if [ "$UPLOAD_CODE" = "1" ]; then
   # Ship the COMMITTED tree so the run is identifiable by commit, plus the bootstrap the
   # container fetches. Without this, a job silently runs whatever code was uploaded last.
-  T="$(mktemp -d)/repo.tar.gz"
-  git -C "$ROOT" archive --format=tar.gz -o "$T" HEAD
-  echo "=== uploading code @ $(git -C "$ROOT" rev-parse --short HEAD) ($(du -h "$T" | cut -f1)) ==="
-  "$GC" storage cp "$T" "gs://${BUCKET}/code/repo.tar.gz" -q
-  "$GC" storage cp "$ROOT/scripts/vertex_bootstrap.sh" "gs://${BUCKET}/code/vertex_bootstrap.sh" -q
+  D="$(mktemp -d)"
+  git -C "$ROOT" archive --format=tar.gz -o "$D/repo.tar.gz" HEAD
+  # Take the bootstrap from the git BLOB, not the working tree. .gitattributes normalises text to
+  # LF in the repo, but a Windows checkout materialises it CRLF -- and a CRLF shebang makes the
+  # kernel look for "/bin/bash\r", which exits 127 "command not found" a couple of minutes into
+  # the job. Three jobs died that way before this line existed. `git archive` above is already
+  # blob-sourced and so was never affected; only this direct upload was.
+  git -C "$ROOT" show HEAD:scripts/vertex_bootstrap.sh > "$D/vertex_bootstrap.sh"
+  # Check via od: Git-Bash's grep strips CR before matching, so `grep $'\r'` silently never
+  # fires on the very platform that produces the problem. od renders it as a literal \r first.
+  if od -c "$D/vertex_bootstrap.sh" | head -1 | grep -q '\\r'; then
+    echo "bootstrap still has CRLF after blob extraction -- aborting rather than burning jobs" >&2
+    exit 3
+  fi
+  echo "=== uploading code @ $(git -C "$ROOT" rev-parse --short HEAD) ($(du -h "$D/repo.tar.gz" | cut -f1)) ==="
+  "$GC" storage cp "$D/repo.tar.gz" "gs://${BUCKET}/code/repo.tar.gz" -q
+  "$GC" storage cp "$D/vertex_bootstrap.sh" "gs://${BUCKET}/code/vertex_bootstrap.sh" -q
 fi
 
 case "$SPLIT_BY" in
