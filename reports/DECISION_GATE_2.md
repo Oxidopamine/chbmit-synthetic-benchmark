@@ -3,7 +3,7 @@
 **Date:** 2026-08-30 · **Grids:** `downstream_gated_p2.csv` (81 rows, ratio ladder) and
 `downstream_gated_p3.csv` (72 rows, pool-relative admission) · **Run:** 6 Vertex AI Spot A100
 jobs, ~11 h wall-clock across two grids, no preemptions · **Detector:** `tcn` only
-(see `README.md` "Budget-constrained scope") · **Code:** `dbb143c`
+(see `README.md` "Budget-constrained scope") · **Code:** `cdb7304`
 
 Reproduce:
 
