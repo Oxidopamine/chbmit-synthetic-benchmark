@@ -23,26 +23,27 @@ fail-closed "trust gating" has been proposed to make it safe under subject shift
 trust-gated augmentation on CHB-MIT under patient-independent splits, scored at the event level
 with SzCORE conventions and pre-registered harm.
 
-Augmentation does not beat a one-line class-weighted loss, losing 0.063 event-F1 on the
-highest-capacity detector. This is not a dose artefact: across the source method's operating band
+Augmentation is at parity with simple baselines and does not beat a one-line class-weighted loss,
+trailing it by 0.063 event-F1 on the highest-capacity detector — a gap our design is not powered to
+establish. This is not a dose artefact: across the source method's operating band
 (r ∈ [0.05, 0.30]) the dose–performance curve is monotone with no interior optimum.
 
 More consequentially, the gate as we first built it *cannot inject a dose at all*. Calibrating
 admission on real ictal windows — which the teacher has memorised — admits 6 windows against a
-target of 251 and 23 against 752, whatever is requested; the source method's own K_min = 200
+target of 251 and 23 against 752, whatever is requested, and the source method's K_min = 200
 safeguard is met in 0 of 9 cells. The divergence was ours, documented in advance as a design
-choice, and invisible in every output the pipeline produced. Restoring the published pool rank cut
-gives exact dose control.
+choice, and invisible in every pipeline output. The published pool rank cut restores exact dose
+control.
 
 At a real dose, teacher admission yields better *models* than a matched random draw (+0.072
 event-F1, 8 of 9 cells), but this fails fold-dependence correction and is undetectable after the
 fail-closed stage — which we decline to call equivalence, the study bounding it only at ±0.121.
-Tail control replicates and survives multiplicity correction, a circularity objection and dose
-stratification, holding even for *randomly selected* synthetic.
+Tail control replicates, surviving multiplicity correction, a circularity objection and dose
+stratification, and holding even for *randomly selected* synthetic.
 
 We quantify four evaluation pitfalls that changed our own conclusions, including that the
 Nadeau–Bengio variance floor is set by fold count: **additional seeds cannot buy fold-corrected
-power**, and at three folds no number of replicates resolves an effect below ≈0.13 event-F1.
+power**, and at three folds no number of replicates resolves effects below ≈0.13 event-F1.
 
 **Keywords:** seizure detection, synthetic data, generative augmentation, patient-independent
 validation, negative results, evaluation methodology
@@ -119,9 +120,10 @@ Second, the gap GP-EEG leaves is precisely the set we fill. It reports **no non-
 baselines** — no class weighting, no oversampling, no classical augmentation; **sample-level
 metrics only**, on 1024-sample segments, with no event-level scoring; and **no FP/day**, hence no
 operating-regime comparison and no tail-risk statement. Its own +2.75 F1 headline is a
-sample-level number with no class-weighting comparison. Our §4.6 result — that baseline choice
-swings an apparent effect by ±0.13 event-F1, more than the effects under discussion — bears
-directly on how such a number should be read.
+sample-level number with no class-weighting comparison. Our §4.1 result bears directly on how such
+a number should be read: for TCN the *same* gated arm scores +0.008 against `real_only`, −0.063
+against `class_weighted` and +0.076 against `classical_aug` — a **0.139 span** attributable purely
+to which baseline is chosen, larger than any effect under discussion in this literature.
 
 Because GP-EEG established CHB-MIT and Siena as the expected pairing, evaluation on Siena is a
 comparability requirement rather than an extension. We have not met it (§6).
