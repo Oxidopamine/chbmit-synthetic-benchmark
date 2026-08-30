@@ -2,8 +2,9 @@
 
 **Abdullah R. Alotaibi**
 
-**Status:** DRAFT v0.2, 2026-08-31. Sections marked **[TODO]** are unwritten. Every number in
-Results is reproducible from this repository; provenance for each is given in §8.
+**Status:** DRAFT v0.3, 2026-08-31. All sections are drafted. Remaining **[TODO]** markers are
+bibliographic details requiring source verification, plus figure rendering (see §8). Every number
+in Results is reproducible from this repository; provenance for each is given in §8.
 
 > **v0.2 changes, from an internal review.** (1) The claim that admission quality yields *equal
 > deployments* was an equivalence conclusion drawn from a non-significant difference — the exact
@@ -19,34 +20,29 @@ Results is reproducible from this repository; provenance for each is given in §
 
 Generative augmentation of rare ictal EEG is widely reported to improve seizure detection, and
 fail-closed "trust gating" has been proposed to make it safe under subject shift. We replicate
-trust-gated augmentation (TGA) on CHB-MIT under patient-independent splits, scored at the event
-level with SzCORE conventions, with harm pre-registered before test scoring.
+trust-gated augmentation on CHB-MIT under patient-independent splits, scored at the event level
+with SzCORE conventions and pre-registered harm.
 
-Synthetic augmentation does not beat a one-line class-weighted loss, losing 0.063 event-F1 on the
-highest-capacity detector. This is not a dose artefact: sampling the source method's own operating
-band (r ∈ [0.05, 0.30]) leaves the dose–performance curve monotone with no interior optimum.
+Augmentation does not beat a one-line class-weighted loss, losing 0.063 event-F1 on the
+highest-capacity detector. This is not a dose artefact: across the source method's operating band
+(r ∈ [0.05, 0.30]) the dose–performance curve is monotone with no interior optimum.
 
-The gate as we first built it *cannot inject a dose at all*. Calibrating admission on real ictal
-windows — which the teacher detector has memorised — admits 6 windows against a target of 251 and
-23 against 752, irrespective of what is requested; the source method's own minimum-acceptance
-safeguard (K_min = 200) is met in 0 of 9 cells. The divergence was ours and was documented in
-advance as a design choice, yet no output the pipeline produced revealed it. Restoring the
-published pool rank cut gives exact dose control.
+More consequentially, the gate as we first built it *cannot inject a dose at all*. Calibrating
+admission on real ictal windows — which the teacher has memorised — admits 6 windows against a
+target of 251 and 23 against 752, whatever is requested; the source method's own K_min = 200
+safeguard is met in 0 of 9 cells. The divergence was ours, documented in advance as a design
+choice, and invisible in every output the pipeline produced. Restoring the published pool rank cut
+gives exact dose control.
 
 At a real dose, teacher admission yields better *models* than a matched random draw (+0.072
-event-F1, 8 of 9 cells), but the advantage does not survive fold-dependence correction and is
-undetectable after the fail-closed stage (0.300 vs 0.307). We decline to call that equivalence:
-the study bounds equivalence only at ±0.121 event-F1, wider than the effect itself.
-
-Tail control replicates: admitted cells average −22.6 FP/24 h with 0 of 21 above +20, versus +10.9
-and 23 of 60 reverted, surviving multiplicity correction, a circularity objection, and dose
-stratification. This corroborates the source method's central claim rather than extending it, and
-it holds for *randomly selected* synthetic (p = 0.0008), locating the mechanism in the fail-closed
-decision rather than in admission quality.
+event-F1, 8 of 9 cells), but this fails fold-dependence correction and is undetectable after the
+fail-closed stage — which we decline to call equivalence, the study bounding it only at ±0.121.
+Tail control replicates and survives multiplicity correction, a circularity objection and dose
+stratification, holding even for *randomly selected* synthetic.
 
 We quantify four evaluation pitfalls that changed our own conclusions, including that the
-Nadeau–Bengio variance floor is set by fold count, so **additional seeds cannot buy fold-corrected
-power** — at three folds no number of replicates resolves an effect below ≈0.13 event-F1.
+Nadeau–Bengio variance floor is set by fold count: **additional seeds cannot buy fold-corrected
+power**, and at three folds no number of replicates resolves an effect below ≈0.13 event-F1.
 
 **Keywords:** seizure detection, synthetic data, generative augmentation, patient-independent
 validation, negative results, evaluation methodology
@@ -99,9 +95,55 @@ random-gating control and reports it as mixed — in the published numbers, two 
 comparisons favour *random* gating, while the paper concludes that curation adds safety. Resolving
 that control at a defensible dose is one of our aims.
 
-**[TODO]** Position against GP-EEG and the broader EEG-GAN augmentation literature; cite
-arXiv:2409.12116 on stronger baselines as a clinical-ML requirement, and arXiv:2510.08095 for the
-U-shaped dose bound. Source list in `reports/LITERATURE_AUDIT_2026-08-29.md` §6.
+### 2.1 Generative augmentation for seizure detection
+
+The closest prior work is GP-EEG [3], which evaluates four generators as augmentation on CHB-MIT
+and Siena under leave-one-patient-out splits with EEGNet. Its reported deltas against baseline are
+instructive:
+
+| method | CHB-MIT ΔF1 | ΔRecall | Siena ΔF1 |
+|---|---|---|---|
+| COSCI-GAN | −10.52 | −17.23 | −0.54 |
+| TimeVAE | −14.23 | −22.31 | −12.70 |
+| ImagenTime | −3.70 | −8.16 | −0.27 |
+| GP-EEG | +2.75 | +2.26 | +5.11 |
+
+Two things follow. First, **harm from synthetic ictal augmentation on CHB-MIT is already
+published**, with the signature we also observe — precision up, recall down hard. Our negative
+result is therefore not novel in direction, and we do not claim it as such. What we add is
+*characterisation*: pre-registered harm thresholds, tail-risk reporting, and an explicit
+false-alarm axis.
+
+Second, the gap GP-EEG leaves is precisely the set we fill. It reports **no non-generative
+baselines** — no class weighting, no oversampling, no classical augmentation; **sample-level
+metrics only**, on 1024-sample segments, with no event-level scoring; and **no FP/day**, hence no
+operating-regime comparison and no tail-risk statement. Its own +2.75 F1 headline is a
+sample-level number with no class-weighting comparison. Our §4.6 result — that baseline choice
+swings an apparent effect by ±0.13 event-F1, more than the effects under discussion — bears
+directly on how such a number should be read.
+
+Because GP-EEG established CHB-MIT and Siena as the expected pairing, evaluation on Siena is a
+comparability requirement rather than an extension. We have not met it (§6).
+
+### 2.2 Baselines, dose, and selection
+
+Two literatures frame our methodological results. *Stronger Baseline Models* [5] names class
+balancing via inverse-frequency weighting as a required clinical-ML baseline and documents cases
+where simple models match or beat complex ones; our finding that a one-line class-weighted loss
+beats the full generative pipeline is an instance of a documented, citable pattern rather than an
+idiosyncrasy of this corpus. Related work on how proposed-method win rates fall as baseline counts
+rise [7] makes the same point from the other direction.
+
+On dose, Shidani et al. [4] give a stability-based generalisation bound whose risk term is
+**U-shaped in the synthetic mixing ratio**: too little synthetic leaves variance high, too much
+lets distributional mismatch dominate, and for fixed W₂(real, synthetic) an optimal mixing
+parameter exists. This is why a single uncontrolled injection ratio cannot support a negative
+result, and why §4.3 samples the band rather than a point.
+
+Finally, the observation that random selection is a strong baseline against learned selection is
+established in the coreset and data-pruning literature [8]. Our §4.4 is a seizure-specific,
+event-level instance of that comparison, and we read our result in that light rather than as a
+surprise.
 
 ## 3. Methods
 
@@ -202,7 +244,7 @@ Under `reference="real_ictal"`, the admitted count is decoupled from the request
 | 0.30 | 752 | **23** | 0.0092 |
 
 Tripling the request moved the admitted count from 6 windows to 23; the admission rate is
-0.4–0.5 % of the pool regardless of target. The cause is that the threshold is a quantile of the
+0.4–0.5 % of the pool regardless of target (**Figure 1**). The cause is that the threshold is a quantile of the
 teacher's confidence on **real ictal training windows, which the teacher has memorised**, so it
 sits near 1.0 and almost no generated window clears it.
 
@@ -261,8 +303,8 @@ Sampling the band directly (`ungated`, which receives the requested dose exactly
 | ungated r = 0.30 | 0.217 | −0.065 | 4/9 |
 | ungated r = 1.00 | 0.268 | −0.015 | 5/9 |
 
-Monotone through the source method's own band, **no interior optimum**, nothing significant. The
-negative result does not depend on dose.
+Monotone through the source method's own band, **no interior optimum**, nothing significant
+(**Figure 2**). The negative result does not depend on dose.
 
 ### 4.4 Admission quality: better models, equal deployments
 
@@ -346,7 +388,7 @@ holding the source paper should weigh it as corroboration, and novelty in this m
 be sought in §4.2, §4.4.1 and §4.6 instead.
 
 Pooling all 81 gated-family cells and splitting by the gate's own admit/revert decision
-(Δ against real_only, augmented model):
+(Δ against real_only, augmented model; **Figure 3**):
 
 | | n | mean ΔFP/24 h | median | worst | mean Δevent-F1 |
 |---|---|---|---|---|---|
@@ -416,12 +458,13 @@ far below what n = 9 resolves. The prediction is not testable here.
 
 ## 5. Discussion
 
-**[TODO — expand.]** Draft argument:
+### 5.1 What survives
 
 The governance framing survives our replication; the accuracy framing does not. Nothing here
 suggests generative augmentation of ictal EEG is worth its complexity against a class-weighted
-loss on this corpus. But the gate does something real and narrow: it bounds the false-alarm tail,
-and it does so through its decision stage rather than its admission rule.
+loss on this corpus, and the harm signature we observe matches what is already published for other
+generators on the same data [3]. But the gate does something real and narrow: it bounds the
+false-alarm tail, and it does so through its decision stage rather than its admission rule.
 
 That suggests a practical consequence, which we state as a hypothesis rather than a result. If the
 fallback is strong, the gate's value may lie in *rejecting* rather than in *curating*, and a
@@ -435,6 +478,53 @@ mechanism in the decision stage.
 We stress that §4.4 cannot establish the first strand, only fail to refute it. A study powered for
 equivalence — which, by §4.4.1, means **more folds, not more seeds** — is required before this
 becomes a recommendation rather than a conjecture.
+
+### 5.2 Silent mechanism failure
+
+The result we expect to travel furthest is §4.2, and it is not about seizures. A gated
+augmentation pipeline has a failure mode in which a threshold-calibration choice reduces the
+intervention to approximately nothing while every observable output remains well-formed. Admission
+rates, event-F1, FP/24 h, harm rates and gate decisions were all plausible for an entire
+experimental phase during which the gate injected 6 windows where 251 were requested.
+
+What makes this dangerous is that the failure is invisible to the reporting conventions of the
+field. No standard results table asks for the realized intervention magnitude. A paper reporting
+"trust-gated augmentation at q = 0.90" is, on its face, complete — and gives the reader no way to
+discover that the gate admitted 0.4 % of what it was asked to. We were the authors, we had written
+the gate, and we did not notice for a phase.
+
+The remedy is cheap: **report realized quantities, not requested ones.** For augmentation that
+means the injected count per cell, not the ratio parameter; for selection methods it means the
+size and composition of the selected set, not the threshold. We would go further and suggest that
+any paper claiming an intervention had no effect should be required to demonstrate that the
+intervention actually occurred at the intended magnitude — a null from an intervention that did
+not happen is not a null about the intervention.
+
+Our own §4.6 pitfall 2 is the same lesson in the statistical register: a control scored after a
+fallback stage measures the fallback, not the control.
+
+### 5.3 On negative results and their reference class
+
+Our headline negative — synthetic augmentation does not beat class weighting — is only as strong
+as the baseline it is measured against, and we found that baseline choice swings the apparent
+effect by more than the effect. That cuts both ways. It disciplines our own claim, but it also
+implies that positive results in this literature reported against a single weak baseline, without
+class weighting, are not interpretable at the precision they are quoted to. GP-EEG's +2.75 F1 on
+CHB-MIT [3] is a sample-level number with no class-weighting comparison; we make no claim about
+whether it would survive one, only that the question is open and cheap to answer.
+
+The deeper problem is that this field's standard design — three to five patient-independent folds,
+several seeds — has a hard inferential floor (§4.4.1) that is widely unacknowledged. Studies
+average over seeds and report Wilcoxon tests as though replicates were independent. At three
+folds, effects below roughly 0.13 event-F1 are not resolvable no matter how many seeds are run.
+Most reported effects in this area are smaller than that.
+
+### 5.4 What we would do differently
+
+Three things, in order of value. Run more **folds** rather than more seeds. Report the **realized**
+intervention magnitude alongside the requested one. And choose the comparison baseline on
+**validation**, reporting its test score — selecting it on test inflated ours by +0.035, which is
+comparable to the effects being debated.
 
 The broader lesson concerns silent mechanism failure. Our admission reference diverged from the
 published rank cut in a way that read, in a design table, as a minor reparameterisation. It
@@ -466,14 +556,39 @@ Only measuring the realized quantity, rather than the requested one, exposed it.
 
 ## 7. Declared pre-registration deviations
 
-**[TODO]** Rebuild the table from `the verification record` §5 with Phase 1/2 status. Six
-deviations were identified post hoc and must be declared: harm reference, detector set, fold
-count, core generator, admission quantile grid, and scarcity fractions. Deviations 2 and 5 were
-partly remedied in Phase 1; 3 and 6 stand.
+Our principal methodological asset is pre-registration, so deviations from it must be declared
+rather than absorbed. Six were identified by internal audit *after* the first grid was scored;
+their status after Phases 1 and 2 is below. We were not aware of them at the time of the initial
+analysis, which is itself part of the record.
+
+| # | axis | registered | as run | status |
+|---|---|---|---|---|
+| **1** | **Harm reference** | best simple baseline per (fold, seed) — max of real_only, class_weighted, classical_aug | `real_only` only; the other two were never run | **Remedied** in Phase 1, which added both. The substitution was worth +0.163 event-F1 for TCN — roughly twice the effect originally claimed |
+| 2 | Detectors | eegnet, lct, tcn | eegnet, tcn (LCT dropped) | **Remedied** in Phase 1. LCT is a detector where the simple baseline also wins |
+| 3 | Folds | 5 | 0, 1, 2 | **Stands.** Costs power, and per §4.4.1 the fold count — not the seed count — is the binding constraint on fold-corrected inference |
+| 4 | Core generator | cVAE core; WGAN-GP appendix | band-limited WGAN-GP as headline | **Stands.** Confirmatory → exploratory. Justified by a measured fidelity dead-end in the cVAE, but a deviation nonetheless |
+| 5 | Admission quantile | q_core 0.90; grid {0.75, 0.90, 0.99} | {0.90, 0.50}, then {0.9917, 0.9500} under the pool reference | **Superseded.** §4.2 shows q is not comparable across admission references: the same q admits 6 windows under `real_ictal` and 1,505 under `pool` |
+| 6 | Scarcity | 1.0, 0.5, 0.25 | 1.0 only | **Stands.** We ran in the regime where augmentation has least to offer, which is conservative against our own negative result |
+
+Two further departures arose during the work and are declared here for completeness: Phase 2 ran a
+**single detector** (TCN) for budget reasons, so its dose and admission results are not replicated
+across architectures; and Phase 1 was run with **unseeded weight initialisation** (§6, item 6),
+which breaks pairing for cross-family comparisons and was fixed only for Phase 2.
+
+We also record two corrections to our own analysis, both made before publication and both
+material: the harm reference was initially selected on *test* rather than validation, inflating it
+by +0.035 event-F1 (§4.6); and the matched-volume control was initially scored *after* the
+fail-closed revert, which made 18 of 27 cells identical by construction and produced a null we
+briefly believed (§4.6).
 
 ## 8. Reproducibility
 
 All results reproduce from this repository without a GPU except the detector grids.
+
+**Figures.** `scripts/make_preprint_figures.py` generates all three from the committed CSVs.
+It has **not been run on the authoring machine** — Windows Smart App Control blocks matplotlib's
+native extension there — so the figures are specified and their data verified, but unrendered.
+Run it anywhere matplotlib imports.
 
 | result | data | command |
 |---|---|---|
@@ -487,6 +602,44 @@ Full experimental record, including two corrections to our own analysis:
 
 ## References
 
-**[TODO]** Formal bibliography. Anchors: Choi et al. 2026 (npj Digit Med 9:634); Shidani et al.
-arXiv:2510.08095; arXiv:2409.12116; SzCORE / `timescoring`; CHB-MIT (PhysioNet); Nadeau & Bengio
-2003. Full source list with verification status in `reports/LITERATURE_AUDIT_2026-08-29.md` §6.
+Verification status for each is recorded in `reports/LITERATURE_AUDIT_2026-08-29.md` §6.
+Items marked **[unverified]** are cited for a qualitative pattern only and were confirmed at
+search level; they must be checked before any number is quoted from them.
+
+[1] Choi, D.; Yip, C.; Choi, A.; Park, J. (2026). *Trust-gated synthetic EEG augmentation reduces
+performance drops when generalizing to new patients.* npj Digital Medicine 9(1), art. 634.
+doi:10.1038/s41746-026-02778-0. PMID 42185473. *(Verified: Crossref API and Europe PMC.)*
+
+[2] Choi, D. et al. Preprint of [1]. bioRxiv, doi:10.64898/2026.01.26.701638v1.
+
+[3] Moutonnet, M.; Corneck, ?; Tobar, F.; Mandic, D. (2026). *Synthesizing Epileptic Seizures:
+Gaussian Processes for EEG Generation.* arXiv:2601.21752. **[TODO: complete author initials.]**
+
+[4] Shidani, A.; Farghly, T.; Sun, ?; Ganjgahi, H.; Deligiannidis, G. *Beyond Real Data: Synthetic
+Data Through The Lens Of Regularization.* arXiv:2510.08095. **[TODO: complete author initials.]**
+
+[5] *Stronger Baseline Models — A Key Requirement for Aligning Machine Learning Research with
+Clinical Utility.* arXiv:2409.12116. **[TODO: author list.]**
+
+[6] Dan, J. et al. *SzCORE: A seizure community open-source research evaluation framework.*
+arXiv:2505.18191. **[TODO: confirm author list and the v2 title, which differs from v1.]**
+
+[7] *Meaningless comparisons lead to false optimism in medical machine learning.*
+arXiv:1707.06289. **[unverified]**
+
+[8] Coreset and data-pruning literature on random selection as a strong baseline, e.g.
+arXiv:2210.15809. **[unverified]**
+
+[9] Shoeb, A. (2009). *Application of machine learning to epileptic seizure onset detection and
+treatment.* PhD thesis, MIT. CHB-MIT Scalp EEG Database, PhysioNet.
+**[TODO: add the PhysioNet/PhysioBank citation alongside the thesis.]**
+
+[10] Nadeau, C.; Bengio, Y. (2003). *Inference for the generalization error.* Machine Learning
+52(3), 239–281. **[TODO: verify pagination.]**
+
+[11] Lawhern, V. J. et al. (2018). *EEGNet: a compact convolutional neural network for EEG-based
+brain–computer interfaces.* Journal of Neural Engineering 15(5), 056013.
+**[TODO: verify; also add citations for the LCT and TCN detector architectures.]**
+
+[12] Gulrajani, I. et al. (2017). *Improved training of Wasserstein GANs.* NeurIPS.
+**[TODO: verify.]**

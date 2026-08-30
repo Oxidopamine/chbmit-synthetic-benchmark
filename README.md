@@ -185,7 +185,7 @@ flowchart LR
   G2 --> Q5["Q5 - the null is not a dose artifact"]:::q
   G2 --> Q6["Q6 - the gate could never inject a dose"]:::q
   G3 --> Q6
-  G3 --> Q2["Q2 - better models, equal deployments"]:::q
+  G3 --> Q2["Q2 - better models; no detectable<br/>carry-over to deployments, but underpowered"]:::q
 ```
 
 Every cell of every grid is one `(fold, seed, detector)` block, so **n = 9 paired cells** backs
@@ -358,11 +358,12 @@ direction and the mechanism, not the magnitude.
 
 ### Q2 — Does admission quality matter?
 
-**Resolved in Phase 2: better models, equal deployments.** With the published pool rank cut
+**Resolved in Phase 2: better models; no detectable difference after the fail-closed stage.**
+With the published pool rank cut
 restored, teacher admission at a real dose (755 windows) produces clearly better augmented models
 than a random draw of the same size — **+0.072 event-F1 in 8 of 9 cells** — and gets them past
-validation three times as often (2/9 reverts vs 6/9). But the *deployed* policies are
-indistinguishable:
+validation three times as often (2/9 reverts vs 6/9). After the fail-closed stage, the deployed
+policies separate by only −0.007:
 
 | arm | pre-revert event-F1 | deployed event-F1 | reverted |
 |---|---|---|---|
@@ -608,29 +609,56 @@ git diff --stat -- results_chbmit_synthetic/real_validation/splits/splits_seed42
 
 ### 2. Run the grid
 
+Each of the three grids in the record is one command. Phase 1 — 189 runs, all three detectors,
+under the admission reference the grid actually used (reproduced as run, not as it should have
+been run):
+
 ```bash
 python3 scripts/run_multiseed_downstream.py \
   --folds 0 1 2 --seeds 42 123 2024 --detectors eegnet lct tcn \
   --qs 0.90 0.50 --tag _v2
 ```
 
-Resumable — completed `(fold, seed, detector)` blocks are skipped via the output CSV. The nine
-WGAN checkpoints are cached in the repository, so no generator training occurs. **Do not raise
-`--num-workers`**; see [above](#results-are-sensitive-to-execution-environment-not-only-to-seed).
+Phase 2a — the ratio ladder that answers Q5 and exposes Q6 (81 runs, TCN only):
 
-Reference runtime: 13.1 h wall-clock on three NVIDIA A100 workers, one per detector
-(≈ 1.2–1.9 h per block). The workload is dominated by single-threaded per-window normalisation on
-the CPU, not by GPU compute, so a smaller accelerator performs comparably.
+```bash
+python3 scripts/run_multiseed_downstream.py \
+  --folds 0 1 2 --seeds 42 123 2024 --detectors tcn \
+  --ratios 0.10 0.30 --qs 0.90 --tag _p2
+```
+
+Phase 2b — the published pool rank cut, which is what makes `q` a real dose control and Q2
+answerable (72 runs, TCN only). `--gate-reference` defaults to `real_ictal` for backward
+compatibility with the record; **pass `pool` for any new work**:
+
+```bash
+python3 scripts/run_multiseed_downstream.py \
+  --folds 0 1 2 --seeds 42 123 2024 --detectors tcn \
+  --gate-reference pool --qs 0.95 0.9917 --tag _p3
+```
+
+All three grids are resumable — completed `(fold, seed, detector)` blocks are skipped via the
+output CSV. The nine WGAN checkpoints are cached in the repository, so no generator training
+occurs. **Do not raise `--num-workers`**; see
+[above](#results-are-sensitive-to-execution-environment-not-only-to-seed).
+
+Reference runtime for Phase 1: 13.1 h wall-clock on three NVIDIA A100 workers, one per detector
+(≈ 1.2–1.9 h per block). Phase 2's two grids together took ~11 h across six A100 Spot jobs. The
+workload is dominated by single-threaded per-window normalisation on the CPU, not by GPU compute,
+so a smaller accelerator performs comparably.
 
 ### 3. Analyse
 
 ```bash
-python3 scripts/analyze_multiseed.py --tag _v2
+python3 scripts/analyze_multiseed.py --tag _v2                                 # Phase 1
+python3 scripts/analyze_multiseed.py --tag _p2 --conds-expected 9 --ratio 0.10  # Phase 2a
+python3 scripts/analyze_multiseed.py --tag _p3 --conds-expected 8               # Phase 2b
 ```
 
 Emits the paired-delta summary, the safety–benefit frontier and the admitted-vs-reverted tail
 analysis, with Nadeau–Bengio and fold-level tests alongside Wilcoxon and an explicit comparison
-count. Legacy 4-condition CSVs are readable with `--conds-expected 4`.
+count. `--conds-expected` must match the grid's condition count, or partial blocks are treated as
+complete. Legacy 4-condition CSVs are readable with `--conds-expected 4`.
 
 ### Cloud execution
 
