@@ -1,0 +1,37 @@
+[    60s] f0 s42: n_real=2508 W2=0.4170  real-vs-real floor=0.0725  ratio=5.75
+[    85s] f0 s123: n_real=2508 W2=0.4943  real-vs-real floor=0.0721  ratio=6.86
+[   115s] f0 s2024: n_real=2508 W2=0.4828  real-vs-real floor=0.0722  ratio=6.69
+[   146s] f1 s42: n_real=2406 W2=0.4412  real-vs-real floor=0.0735  ratio=6.00
+[   170s] f1 s123: n_real=2406 W2=0.4258  real-vs-real floor=0.0740  ratio=5.75
+[   196s] f1 s2024: n_real=2406 W2=0.4835  real-vs-real floor=0.0733  ratio=6.59
+[   229s] f2 s42: n_real=2643 W2=0.4297  real-vs-real floor=0.0715  ratio=6.01
+[   259s] f2 s123: n_real=2643 W2=0.4501  real-vs-real floor=0.0697  ratio=6.46
+[   290s] f2 s2024: n_real=2643 W2=0.4562  real-vs-real floor=0.0708  ratio=6.44
+
+=== W2(real ictal, band-limited synthetic), per fold ===
+ fold       w2    w2_sd  n_real
+    0 0.464703 0.041725  2508.0
+    1 0.450182 0.029890  2406.0
+    2 0.445349 0.013863  2643.0
+
+=== predicted optimal injection ratio r*, anchored on the median fold ===
+    r* = kappa / (n_real * W2^2); kappa is unidentified, so each column fixes it by
+    pinning the median fold at that rung. ABSOLUTE values are conditional;
+    the SPREAD across folds and the ORDERING are not.
+ fold     W2  r* | median=0.05  r* | median=0.10  r* | median=0.20  r* | median=0.30
+    0 0.4647             0.047             0.094             0.188             0.282
+    1 0.4502             0.052             0.104             0.208             0.313
+    2 0.4453             0.048             0.097             0.194             0.291
+
+  W2 spread across folds: 1.04x  =>  r* spread 1.09x (r* goes as 1/W2^2)
+  Folds are near-identical in W2. A per-fold dose is not worth it; use one ladder.
+
+=== the falsifiable prediction ===
+  folds by W2, largest first: [0, 1, 2]
+  => predicted optimal dose, SMALLEST first: [0, 1, 2]
+  r* is monotone decreasing in W2 at every kappa, so this ordering holds without
+  estimating any constant. Test it against the mini-grid: the fold with the largest
+  W2 should peak at the lowest ratio. If the ordering inverts, the bound does not
+  describe this setting and the dose story should be reported empirically only.
+
+wrote /tmp/w2run/results_chbmit_synthetic/real_validation/analysis_tierB/w2_dose_prediction.csv

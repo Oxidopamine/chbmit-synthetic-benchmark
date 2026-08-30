@@ -14,7 +14,8 @@
 # With restartJobOnWorkerRestart set, a reclaimed worker re-runs this script and continues from
 # the next incomplete block.
 #
-# Required env: BUCKET, DETECTOR, TAG. Optional: FOLDS, SEEDS, QS, EPOCHS, SYNC_SECS.
+# Required env: BUCKET, DETECTOR, TAG. Optional: FOLDS, SEEDS, QS, RATIOS, RANDOM_QS, EPOCHS,
+# SYNC_SECS.
 set -uo pipefail
 
 BUCKET="${BUCKET:?BUCKET is required}"
@@ -23,6 +24,11 @@ TAG="${TAG:?TAG is required}"
 FOLDS="${FOLDS:-0 1 2}"
 SEEDS="${SEEDS:-42 123 2024}"
 QS="${QS:-0.90 0.50}"
+# Phase 2 axes. Defaults reproduce the Phase 1 grid, so an unset RATIOS/RANDOM_QS changes
+# nothing. RATIOS is the injection ladder (see DECISION_GATE_1 CORRECTION 2 for why r=1.0 alone
+# was not enough); RANDOM_QS is the matched-volume control, one per gated arm.
+RATIOS="${RATIOS:-1.0}"
+RANDOM_QS="${RANDOM_QS:-$QS}"
 EPOCHS="${EPOCHS:-80}"
 SYNC_SECS="${SYNC_SECS:-60}"
 NUM_WORKERS="${NUM_WORKERS:-0}"
@@ -125,7 +131,7 @@ finish() {
 }
 trap finish EXIT TERM INT
 
-log "=== Phase 1: detector=$DETECTOR folds=[$FOLDS] seeds=[$SEEDS] qs=[$QS] epochs=$EPOCHS ==="
+log "=== grid: detector=$DETECTOR folds=[$FOLDS] seeds=[$SEEDS] qs=[$QS] ratios=[$RATIOS] random_qs=[$RANDOM_QS] epochs=$EPOCHS ==="
 export CHBMIT_STORE="$WORK/data/processed_chbmit_real/eeg.zarr"
 export CHBMIT_PROC="$WORK/data/processed_chbmit_real/processed_index.csv"
 export CHBMIT_RESULTS="$RES"
@@ -135,7 +141,7 @@ cd "$WORK"
 # the GCS sync above replaces it.
 stdbuf -oL -eL python scripts/run_multiseed_downstream.py \
   --folds $FOLDS --seeds $SEEDS --detectors "$DETECTOR" \
-  --qs $QS --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
+  --qs $QS --ratios $RATIOS --random-qs $RANDOM_QS \n  --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
 rc=${PIPESTATUS[0]}
 log "driver exit=$rc"
 exit $rc

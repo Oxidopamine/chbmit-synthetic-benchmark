@@ -30,10 +30,42 @@ FOLDS="${FOLDS:-0 1 2}"
 SEEDS="${SEEDS:-42 123 2024}"
 QS="${QS:-0.90 0.50}"
 NUM_WORKERS="${NUM_WORKERS:-0}"
+# Phase 2 axes. Defaults reproduce Phase 1 exactly, so an unset RATIOS changes nothing.
+RATIOS="${RATIOS:-1.0}"
+RANDOM_QS="${RANDOM_QS:-$QS}"
+# How to shard across the 3-concurrent-job quota ceiling. "detector" is the Phase 1 pattern.
+# "seed" is for reduced grids that run ONE detector: a single job would be ~14 h, long enough
+# that Spot preemption is likely, so split into three ~5 h jobs instead. The run is resumable
+# either way, but shorter jobs lose less when preempted.
+SPLIT_BY="${SPLIT_BY:-detector}"
+NAME="${NAME:-chbmit-phase1}"
+UPLOAD_CODE="${UPLOAD_CODE:-0}"   # 1 = ship the committed tree + bootstrap before submitting
+DRY_RUN="${DRY_RUN:-0}"
 GC="${GC:-gcloud}"
 
-for DET in $DETECTORS; do
-  TAG="${SUFFIX}_${DET}"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [ "$UPLOAD_CODE" = "1" ]; then
+  # Ship the COMMITTED tree so the run is identifiable by commit, plus the bootstrap the
+  # container fetches. Without this, a job silently runs whatever code was uploaded last.
+  T="$(mktemp -d)/repo.tar.gz"
+  git -C "$ROOT" archive --format=tar.gz -o "$T" HEAD
+  echo "=== uploading code @ $(git -C "$ROOT" rev-parse --short HEAD) ($(du -h "$T" | cut -f1)) ==="
+  "$GC" storage cp "$T" "gs://${BUCKET}/code/repo.tar.gz" -q
+  "$GC" storage cp "$ROOT/scripts/vertex_bootstrap.sh" "gs://${BUCKET}/code/vertex_bootstrap.sh" -q
+fi
+
+case "$SPLIT_BY" in
+  seed)     SHARDS="$SEEDS" ;;
+  detector) SHARDS="$DETECTORS" ;;
+  *) echo "SPLIT_BY must be 'detector' or 'seed'" >&2; exit 2 ;;
+esac
+
+for SHARD in $SHARDS; do
+  if [ "$SPLIT_BY" = "seed" ]; then
+    DET="$DETECTORS"; JOB_SEEDS="$SHARD"; TAG="${SUFFIX}_s${SHARD}"
+  else
+    DET="$SHARD";     JOB_SEEDS="$SEEDS"; TAG="${SUFFIX}_${SHARD}"
+  fi
   CFG="$(mktemp)"
   cat > "$CFG" <<YAML
 workerPoolSpecs:
@@ -70,20 +102,30 @@ workerPoolSpecs:
         - name: FOLDS
           value: "${FOLDS}"
         - name: SEEDS
-          value: "${SEEDS}"
+          value: "${JOB_SEEDS}"
         - name: QS
           value: "${QS}"
+        - name: RATIOS
+          value: "${RATIOS}"
+        - name: RANDOM_QS
+          value: "${RANDOM_QS}"
         - name: NUM_WORKERS
           value: "${NUM_WORKERS}"
 scheduling:
   strategy: SPOT
   restartJobOnWorkerRestart: true
 YAML
-  echo "=== submitting detector=${DET} tag=${TAG} ==="
-  "$GC" ai custom-jobs create \
-    --region="${REGION}" \
-    --display-name="chbmit-phase1-${DET}" \
-    --config="$CFG" 2>&1 | tail -4
+  echo "=== submitting detector=${DET} seeds=[${JOB_SEEDS}] ratios=[${RATIOS}] tag=${TAG} ==="
+  if [ "$DRY_RUN" = "1" ]; then
+    echo "--- DRY RUN: not submitted ---"
+    grep -E "machineType:|name: (DETECTOR|SEEDS|FOLDS|QS|RATIOS|RANDOM_QS|TAG)$" -A 1 "$CFG" \
+      | grep -v '^--$'
+  else
+    "$GC" ai custom-jobs create \
+      --region="${REGION}" \
+      --display-name="${NAME}-${TAG#_}" \
+      --config="$CFG" 2>&1 | tail -4
+  fi
   rm -f "$CFG"
 done
 
