@@ -192,6 +192,41 @@ critic exists for any cell**; W₂ is estimated empirically by sliced Wasserstei
 
 ---
 
+## Q4 re-audited against Q6 — and it survives
+
+Q6 created a specific reason to doubt Q4. The tail-control result pools 81 Phase 1 gated-family
+cells spanning two orders of magnitude in admitted count (6 to 2508). If the *admitted* cells were
+systematically the low-dose ones — where the augmented model is nearly `real_only`, so ΔFP/24h ≈ 0
+by construction — and the *reverted* cells were the full-dose ones where synthetic inflates false
+alarms, then Q4 would be measuring **dose**, not the gate's decision.
+
+It is not. Three independent checks, all on committed data:
+
+| check | result |
+|---|---|
+| Is dose different between the groups? | admitted median **577**, reverted median **136**; Mann–Whitney **p = 0.197** — no difference, and the sign is *opposite* to the confound |
+| Does dose drive FP/24h at all? | Spearman(n_admitted, ΔFP/24h) = **−0.010**, p = 0.932 — the confound mechanism does not exist |
+| Are admitted cells concentrated in low-dose arms? | No: 10 from `gated q0.5`, 5 from `gated q0.9`, 6 from `random_gated q0.9` |
+
+**Stratified within arm**, which removes any dose or arm difference entirely:
+
+| arm | admitted | reverted | p |
+|---|---|---|---|
+| `gated q0.5` | n=10, −26.47 | n=17, +12.29 | **0.0008** |
+| `gated q0.9` | n=5, −16.85 | n=22, +4.73 | 0.1135 |
+| `random_gated q0.9` | n=6, −20.86 | n=21, +16.24 | **0.0008** |
+
+Two of three arms clear Bonferroni for three tests (p < 0.0167) on their own; the third has only
+5 admitted cells. **The separation is a property of the fail-closed decision, not of dose.**
+
+Note the third row: the separation holds even for **randomly selected** synthetic. The gate's
+*decision* stage predicts the false-alarm tail regardless of how the windows were chosen — which
+is consistent with Phase 2's finding that the fallback, not the admission rule, is what delivers.
+
+The confound was hypothesised before testing and the data contradicts it in direction as well as
+magnitude. Q4 is the most robust result in the project: it survives multiplicity, the circularity
+objection (`DECISION_GATE_1.md` CORRECTION 2), and now dose stratification.
+
 ## Corrections to the plan this phase forced
 
 **`the implementation plan` §2.2 should not have been dropped.** The audit reasoned that

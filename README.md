@@ -383,6 +383,14 @@ Mann–Whitney **p = 0.000046**, within-fold permutation **p < 0.0001**, Fisher 
 all clearing Bonferroni. The gate's event-F1 criterion **predicts test false-alarm inflation**, a
 cross-metric, cross-split prediction that selection-on-the-outcome cannot produce.
 
+**It is not a dose effect either.** Phase 2 showed the gate admits anywhere from 6 to 2,508
+windows, raising the possibility that admitted cells were simply the low-dose ones. They are not:
+dose does not differ between the groups (median 577 admitted vs 136 reverted, p = 0.197, sign
+*opposite* to the confound), dose does not predict ΔFP/24 h at all (Spearman **−0.010**,
+p = 0.932), and the separation holds **within** each arm — `gated q0.5` p = 0.0008 and
+`random_gated q0.9` p = 0.0008, both clearing Bonferroni alone. The separation is a property of
+the fail-closed decision, not of how much synthetic was injected.
+
 ### Statistics
 
 We report the Wilcoxon signed-rank test that is conventional in this literature **and** the
