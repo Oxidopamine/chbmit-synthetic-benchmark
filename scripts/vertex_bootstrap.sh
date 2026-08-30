@@ -141,7 +141,8 @@ cd "$WORK"
 # the GCS sync above replaces it.
 stdbuf -oL -eL python scripts/run_multiseed_downstream.py \
   --folds $FOLDS --seeds $SEEDS --detectors "$DETECTOR" \
-  --qs $QS --ratios $RATIOS --random-qs $RANDOM_QS \n  --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
+  --qs $QS --ratios $RATIOS --random-qs $RANDOM_QS \
+  --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
 rc=${PIPESTATUS[0]}
 log "driver exit=$rc"
 exit $rc
