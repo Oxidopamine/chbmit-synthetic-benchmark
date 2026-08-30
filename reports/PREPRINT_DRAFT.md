@@ -59,14 +59,14 @@ Two properties make most of those reports difficult to act on clinically.
 
 **Window-level metrics conceal event-level harm.** A model can improve balanced accuracy or AUROC
 while inflating false alarms per day — the quantity that determines whether a detector is
-deployable at all. We score every arm with `timescoring` under SzCORE conventions and report
+deployable at all. We score every arm with `timescoring` under SzCORE conventions [6] and report
 FP/24 h alongside event-F1 throughout.
 
 **Patient-independent validation is rare.** Splitting windows rather than patients leaks subject
 identity and inflates every number. Here patient groups are partitioned *before* windowing,
 generators are fit on training patients only, and provenance is enforced in code and tested.
 
-Against this background, Choi et al. propose trust-gated augmentation: score candidate synthetic
+Against this background, Choi et al. [1] propose trust-gated augmentation: score candidate synthetic
 windows with a teacher detector, admit only those clearing a confidence threshold, train an
 augmented model, and *fail closed* — revert to the real-only model unless the augmented one
 improves a validation criterion. The framing is explicitly one of governance rather than accuracy.
@@ -83,7 +83,8 @@ conclusions before we caught them.
 
 ## 2. Relationship to prior work
 
-The fail-closed trust gate is not our invention. It is adapted from:
+The fail-closed trust gate is not our invention. It is adapted from [1], whose preprint [2] we
+also consulted for implementation detail:
 
 > Choi, D.; Yip, C.; Choi, A.; Park, J. (2026). *Trust-gated synthetic EEG augmentation reduces
 > performance drops when generalizing to new patients.* npj Digital Medicine 9(1), art. 634.
@@ -149,7 +150,7 @@ surprise.
 
 ### 3.1 Data
 
-CHB-MIT Scalp EEG (PhysioNet), retrieved from the AWS Open Data mirror.
+CHB-MIT Scalp EEG [9] (PhysioNet), retrieved from the AWS Open Data mirror.
 
 | property | value |
 |---|---|
@@ -172,10 +173,10 @@ Patient groups are partitioned before windowing; test groups are disjoint across
 folds were run (train/val/test groups 14/5/4, 13/6/4, 14/4/5), three seeds each, giving n = 9
 paired cells per condition per detector.
 
-Three detector families spanning two orders of magnitude in capacity: **EEGNet** (1,905
+Three detector families spanning two orders of magnitude in capacity: **EEGNet** [11] (1,905
 parameters), **LCT** (120,834), **TCN** (129,441).
 
-The generator is a WGAN-GP fit per (fold, seed) on that fold's training ictal windows only, with
+The generator is a WGAN-GP [12] fit per (fold, seed) on that fold's training ictal windows only, with
 outputs band-limited to the acquisition passband before injection. Band-limiting reduces
 out-of-band power from 0.0093 to 0.0005.
 
@@ -196,15 +197,15 @@ manifold distance. The admission criterion is teacher confidence and nothing els
 
 ### 3.4 Metrics, harm, and statistics
 
-Event-level scoring uses `timescoring` under SzCORE conventions (toleranceStart 30 s, toleranceEnd
-60 s, minOverlap 0, maxEventDuration 300 s, minDurationBetweenEvents 90 s).
+Event-level scoring uses `timescoring` under SzCORE conventions [6] (toleranceStart 30 s,
+toleranceEnd 60 s, minOverlap 0, maxEventDuration 300 s, minDurationBetweenEvents 90 s).
 
 **Harm** is fixed before test scoring as a paired delta with Δevent-F1 < −0.01 **or**
 ΔFP/24 h > +0.25, reported with harm rate, worst-cell delta, and CVaR at α = 0.10.
 
 **Statistics.** We report the Wilcoxon signed-rank test conventional in this literature *and* the
 corrections it requires, because nine cells sharing three splits are not nine independent
-observations: the Nadeau–Bengio corrected resampled t-test, a fold-level t-test on seed-averaged
+observations: the Nadeau–Bengio corrected resampled t-test [10], a fold-level t-test on seed-averaged
 deltas, and an explicit comparison count so Bonferroni is visible rather than implied. Where
 Wilcoxon and Nadeau–Bengio disagree, we report the corrected result.
 
