@@ -46,7 +46,7 @@ The `ungated` arm receives the requested dose exactly, so the ladder samples it 
 | `real_only` (r = 0) | 0.283 | — | — | — |
 | ungated r = 0.10 | 0.264 | −0.019 | 5/9 | 0.910 |
 | ungated r = 0.30 | 0.217 | −0.065 | 4/9 | 0.203 |
-| ungated r = 1.00 | 0.279 | −0.015 | 5/9 | 1.000 |
+| ungated r = 1.00 | 0.268 | −0.015 | 5/9 | 1.000 |
 
 **Monotone through the parent's band, no interior peak, nothing significant.** At r = 0.10 the
 median delta is +0.001 with 5/9 better, so even the small negative mean is outlier-driven. FP/24h

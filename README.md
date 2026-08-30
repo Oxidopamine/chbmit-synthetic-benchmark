@@ -24,6 +24,9 @@ Details and caveats in [Results](#results).
 > [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) (a plan change we recommended and
 > then had to reverse). Phase 2 ran on one detector for budget reasons — see
 > [Budget-constrained scope](#budget-constrained-scope).
+>
+> A manuscript draft is in progress at
+> [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md).
 
 ---
 
@@ -321,7 +324,7 @@ curve is theoretically U-shaped, that was a real confound. Filling it:
 | `real_only` (r = 0) | 0.283 | — | — |
 | ungated r = 0.10 | 0.264 | −0.019 | 5/9 |
 | ungated r = 0.30 | 0.217 | −0.065 | 4/9 |
-| ungated r = 1.00 | 0.279 | −0.015 | 5/9 |
+| ungated r = 1.00 | 0.268 | −0.015 | 5/9 |
 
 Monotone through the parent's band, **no interior peak**, nothing significant. The Phase 1
 conclusion stands on better ground than before.
