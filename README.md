@@ -5,19 +5,25 @@ gating for **patient-independent** seizure detection on CHB-MIT, scored at the *
 with SzCORE conventions.
 
 The short answer, at n = 9 paired runs per detector across three architecture families:
-**synthetic ictal augmentation performs at parity with simple baselines, and the gate reliably
-controls the false-alarm tail. Whether the gate's *admission rule* beats a random draw is
-unresolved** — the matched-volume control was run only where the gate injects ~3 % of the
-intended dose, so it could not have answered the question either way. Details and caveats in
-[Results](#results).
+**synthetic ictal augmentation performs at parity with simple baselines, the gate reliably
+controls the false-alarm tail, and admission quality improves models without improving
+deployments.** Phase 2 added three things: the negative result is **not** an artifact of
+injection dose; the gate as originally built **cannot inject a dose at all** (6–23 windows
+whatever is requested, because the admission threshold is calibrated on data the teacher has
+memorised); and with the published rank cut restored, teacher admission beats a random draw by
++0.072 event-F1 in 8 of 9 cells — which **does not survive correction for fold dependence**.
+Details and caveats in [Results](#results).
 
 **Author:** Abdullah R. Alotaibi ·
 [github.com/Oxidopamine](https://github.com/Oxidopamine/chbmit-synthetic-benchmark)
 
-> **Status.** Phase 1 complete. This repository contains the full experimental record,
-> including two corrections to our own headline analysis (see
-> [Reference selection is not neutral](#reference-selection-is-not-neutral), and CORRECTION 2 in
-> [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md)). Phase 2 is specified but not run.
+> **Status.** Phases 1 and 2 complete. This repository contains the full experimental record,
+> including three corrections to our own analysis: two in
+> [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) (the reference is selection-biased;
+> the admission null was confounded) and one in
+> [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) (a plan change we recommended and
+> then had to reverse). Phase 2 ran on one detector for budget reasons — see
+> [Budget-constrained scope](#budget-constrained-scope).
 
 ---
 
@@ -72,15 +78,24 @@ The fail-closed trust gate is **not our invention**. It is adapted from trust-ga
 
 Our contributions are the **seizure-specific, event-level reformulation** of the admission and
 fail-closed criteria, the **harm characterisation** under a pre-registered definition, and the
-**controls** that the source study left unresolved — notably the matched-volume random-gating
-control, which the TGA authors ran and reported as mixed. That control is implemented and run
-here, but at a dose too small to be informative; it remains unresolved in this benchmark too
-(see [Q2](#q2--does-admission-quality-matter)).
+**matched-volume random-gating control** that the source study ran and reported as mixed. Phase 2
+resolves that control at a real dose: teacher admission produces better models but not better
+deployments (see [Q2](#q2--does-admission-quality-matter)).
 
-Implementation fidelity to the published method is documented honestly, including where this
-benchmark diverges, in the verification record §2.1. The
-divergences are material: our admission threshold is calibrated against real ictal windows rather
-than the candidate pool, and our minimum-acceptance safeguard is 1 rather than TGA's K_min = 200.
+Implementation fidelity is documented in
+the verification record §2.1. **Two divergences turned out to
+matter more than we understood when we listed them**, and both are now quantified:
+
+- **Admission reference.** TGA cuts by rank on the candidate pool; we thresholded on a quantile
+  of real ictal windows. Because the teacher has memorised those windows, the threshold sits near
+  1.0 and the gate admits **6–23 windows whatever is requested** — the divergence did not shift
+  the operating point, it disabled the mechanism. Restoring the rank cut gives exact dose control
+  and is what made Q2 answerable.
+- **Minimum acceptance.** TGA uses `K_min = 200`; we used 1. Under the real-ictal reference,
+  **0 of 9 cells** ever reach 200 admitted windows, so the published safeguard would have
+  rejected every cell of Phase 1.
+
+Both are in [Known issues](#known-issues) and [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) Q6.
 
 ## Data and preprocessing
 
@@ -249,10 +264,34 @@ direction and the mechanism, not the magnitude.
 
 ### Q2 — Does admission quality matter?
 
-**Unresolved — the Phase 1 test could not have answered this.** The control is built correctly:
-`random_gated` draws exactly as many windows as `gated q0.90` from the same pool, verified equal
-in 27 of 27 cells. But the comparison as originally scored is not informative, for three
-reasons ([`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md), CORRECTION 2):
+**Resolved in Phase 2: better models, equal deployments.** With the published pool rank cut
+restored, teacher admission at a real dose (755 windows) produces clearly better augmented models
+than a random draw of the same size — **+0.072 event-F1 in 8 of 9 cells** — and gets them past
+validation three times as often (2/9 reverts vs 6/9). But the *deployed* policies are
+indistinguishable:
+
+| arm | pre-revert event-F1 | deployed event-F1 | reverted |
+|---|---|---|---|
+| gated q = 0.95 | **0.277** | 0.300 | 2/9 |
+| random q = 0.95 | **0.205** | 0.307 | 6/9 |
+
+The fail-closed stage reverts random's bad models to `real_only`, which lands where teacher
+selection arrives by working. **A good fallback makes a good gate redundant** — that result does
+not depend on a p-value.
+
+The +0.072 itself **does not survive correction**: Wilcoxon 0.020, but Nadeau–Bengio **0.140**,
+fold-level 0.103, and Bonferroni for the family requires p < 0.0063. That is the same collapse,
+at the same magnitude, as the retired `+0.083` headline (Wilcoxon 0.008 → NB 0.135). Direction
+and count are reportable; significance is not. Full detail in
+[`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md).
+
+<details>
+<summary>Why the Phase 1 answer to this question was withdrawn</summary>
+
+The Phase 1 control was built correctly — `random_gated` drew exactly as many windows as
+`gated q0.90` from the same pool, verified equal in 27 of 27 cells — but the comparison as
+originally scored was not informative, for three reasons
+([`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md), CORRECTION 2):
 
 1. It was scored **after the fail-closed revert**, and in 18 of 27 cells both arms reverted to
    the same `real_only` model — bit-identical by construction. On the augmented models the
@@ -265,9 +304,43 @@ reasons ([`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md), CORRECTION 
    windows of ~2508 for EEGNet). At q = 0.50 the gate admits the full dose and there is no
    control at all.
 
-What the grid does support: **at q = 0.90 the admission stage is inert because it admits almost
-nothing** — a fact about threshold calibration, not about whether admission quality can matter.
-The matched-volume control at q = 0.50 is staged in the driver and not yet run.
+What the Phase 1 grid supports: **at q = 0.90 the admission stage is inert because it admits
+almost nothing** — a fact about threshold calibration, not about whether admission quality can
+matter. Phase 2 confirmed that diagnosis and fixed it (see Q6 below).
+
+</details>
+
+### Q5 — Was the negative result an artifact of injection dose?
+
+**No.** Phase 1 sampled only r ≈ 0.032 and r = 1.00, leaving r ∈ [0.05, 0.30] — the band the
+parent method's validation ladder actually selects from — unsampled. Since the dose–performance
+curve is theoretically U-shaped, that was a real confound. Filling it:
+
+| arm | event-F1 | Δ vs `real_only` | cells better |
+|---|---|---|---|
+| `real_only` (r = 0) | 0.283 | — | — |
+| ungated r = 0.10 | 0.264 | −0.019 | 5/9 |
+| ungated r = 0.30 | 0.217 | −0.065 | 4/9 |
+| ungated r = 1.00 | 0.279 | −0.015 | 5/9 |
+
+Monotone through the parent's band, **no interior peak**, nothing significant. The Phase 1
+conclusion stands on better ground than before.
+
+### Q6 — Why did the gate never inject anything?
+
+**Because the admission threshold is calibrated on data the teacher has memorised.** Under
+`reference="real_ictal"` the gate admits **6 windows against a target of 251, and 23 against 752**
+— an admission rate of 0.4–0.5 % of the pool *regardless of target*, so no ratio ladder can move
+it. TGA publishes a pool rank cut; this benchmark substituted a real-ictal quantile, and the
+substitution did not merely shift the operating point — it disabled the mechanism.
+
+With `reference="pool"` restored, admitted = `min(oversample·(1−q), 1) · n_synth` **exactly**, so
+q becomes direct dose control. Confirmed live: q = 0.9917 → 126 admitted (predicted 125),
+q = 0.9500 → 755 (predicted 752).
+
+Compounding it: TGA publishes `K_min = 200`; this benchmark used 1. **0 of 9 cells** reach 200
+admitted windows under the real-ictal reference — the published safeguard would have admitted
+nothing, in every cell.
 
 ### Q3 — Capacity or architecture?
 
@@ -553,8 +626,8 @@ statement is that the constraint is financial.
 
 ## Known issues
 
-Three defects found by audit *after* Phase 1 was scored. None is fixed here — fixing them
-requires re-running the grid, which has not been affordable — so they are disclosed instead.
+Four defects found by audit after each phase was scored. #3 and #4 were fixed in Phase 2;
+#1 and #2 are disclosed rather than fixed, because fixing them means re-running Phase 1.
 
 1. **Detector weight initialisation is unseeded, and the condition perturbs the RNG stream.**
    `build_model` runs before any `torch.manual_seed` (`experiments/training.py:337`; the only
@@ -575,16 +648,22 @@ requires re-running the grid, which has not been affordable — so they are disc
    [The trust gate](#the-trust-gate), and it means the gate as run cannot distinguish a
    low-fidelity generator from a degenerate reference. `TrustGateConfig.reference = "pool"`
    already implements the published alternative.
-3. **The matched-volume admission control was scored and dosed in ways that could not detect an
-   effect.** It was paired on the *post-revert* `event_f1`, so the 18 of 27 cells where both arms
+3. **RESOLVED IN PHASE 2 — kept for the record.** The matched-volume admission control was scored
+   and dosed in ways that could not detect an effect. It was paired on the *post-revert* `event_f1`, so the 18 of 27 cells where both arms
    failed closed to the same `real_only` model are identical by construction; it was tested only
    on event-F1, the axis the gate demonstrably does not act on; and it was run only at q = 0.90,
    where defect 2 above holds the injected dose to 0.3–13 % of the intended volume. The control
    itself is correctly built — same pool, same count in 27 of 27 cells, init-matched — so this is
-   a defect in the analysis and the grid point, not in the code. Q2 is therefore **unresolved**,
-   not answered. Full working in
-   [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) CORRECTION 2; the fix (a random
-   control at every q, scored pre-revert on both metrics) is staged in the driver and unrun.
+   a defect in the analysis and the grid point, not in the code. Full working in
+   [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) CORRECTION 2. **Phase 2 fixed it**
+   — pool-relative admission gives the gated arm a real dose, and Q2 is answered in
+   [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md).
+4. **The admission reference diverges from the published method, and this disables the gate.**
+   `reference="real_ictal"` thresholds on the teacher's own memorised training positives, so the
+   gate admits 6–23 windows whatever is requested. Every Phase 1 result, and the Phase 2 ratio
+   ladder, ran under this reference. Only the final `_p3` grid uses the published pool rank cut.
+   `TrustGateConfig.reference` existed from the start but the driver never set it — the option was
+   present and unreachable until `--gate-reference` was added.
 
 Full analysis, including which Phase 1 claims survive and which do not, is in
 the execution log under *SESSION 2026-08-29 — code audit*.

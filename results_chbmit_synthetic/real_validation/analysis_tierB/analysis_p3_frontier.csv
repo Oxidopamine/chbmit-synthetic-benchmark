@@ -1,0 +1,3 @@
+detector,policy,n,mean_delta_event_f1,mean_delta_fp24h,worst_delta_fp24h,cvar10_delta_event_f1,prereg_harm_rate,mean_delta_event_f1_vs_real_only,mean_delta_fp24h_vs_real_only,prereg_harm_rate_vs_real_only
+tcn,always_revert (= real_only),9,-0.07692539910982191,24.189212343725448,75.25181755644834,-0.26988535684187853,0.5555555555555556,0.0,0.0,0.0
+tcn,ungated (all synthetic),9,-0.09173953802182229,24.1040910544822,71.51774012945094,-0.30059216790450227,1.0,-0.01481413891200039,-0.08512128924324319,0.5555555555555556

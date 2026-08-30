@@ -1,0 +1,42 @@
+=== downstream_gated_p3.csv ===
+block sizes present: {8: 9}  (complete = 8 rows)
+complete blocks: 9   folds [0, 1, 2]  seeds [42, 123, 2024]  detectors ['tcn']
+registered reference = best of ['real_only', 'class_weighted', 'classical_aug'] per (fold, seed)
+Nadeau-Bengio n_test/n_train over folds [0, 1, 2]: 0.3168
+
+===== TCN  (n = 9 fold x seed cells) =====
+  real_only event-F1 0.283 | registered-reference event-F1 0.359 (reference arm chosen: {'real_only': 4, 'class_weighted': 3, 'classical_aug': 2})
+  ungated (all synthetic) vs registered d -0.092 NB95 [-0.339,+0.155]  p_wil 0.164  p_NB 0.417  p_fold 0.357  (+3/-6 of 9)
+  ungated (all synthetic) vs real_only d -0.015 NB95 [-0.295,+0.265]  p_wil 1.000  p_NB 0.906  p_fold 0.822  (+5/-4 of 9)
+
+  --- safety-benefit frontier (tcn, vs registered reference) ---
+  policy                           dF1   dFP/24h  worst dFP   harm
+  always_revert (= real_only)   -0.077    +24.19     +75.25   0.56
+  ungated (all synthetic)       -0.092    +24.10     +71.52   1.00
+
+=== (e) admission quality: gated vs random_gated at matched dose ===
+    paired per (fold,seed) cell; positive mean = TEACHER selection better
+    'aug' = augmented model (the valid contrast); 'eff' = post-revert (confounded)
+  tcn q0.95: n=9 cells, 9 with n_admitted>0; dose median 755 of ~2508 intended (30.1%); count mismatches 0
+    post-revert ties 2/9 cells, of which 2 are FORCED (both arms reverted to the same real_only model)
+    [aug] event_f1   mean   +0.072  mean|d|   0.077  range [-0.023,+0.180]  p_wil 0.020  p_NB 0.140  <-- valid contrast
+    [aug] fp_per_24h mean  -22.347  mean|d|  24.942  range [-109.818,+7.844]  p_wil 0.098  p_NB 0.394  <-- valid contrast
+    [eff] event_f1   mean   -0.007  mean|d|   0.065  range [-0.171,+0.089]  p_wil 0.938  p_NB 0.912
+    [eff] fp_per_24h mean  -13.436  mean|d|  15.549  range [-50.656,+7.844]  p_wil 0.109  p_NB 0.326
+  tcn q0.99: n=9 cells, 9 with n_admitted>0; dose median 126 of ~2508 intended (5.0%); count mismatches 0
+    post-revert ties 5/9 cells, of which 5 are FORCED (both arms reverted to the same real_only model)
+    [aug] event_f1   mean   +0.043  mean|d|   0.056  range [-0.034,+0.179]  p_wil 0.164  p_NB 0.379  <-- valid contrast
+    [aug] fp_per_24h mean  -31.155  mean|d|  44.817  range [-188.611,+30.540]  p_wil 0.359  p_NB 0.498  <-- valid contrast
+    [eff] event_f1   mean   -0.010  mean|d|   0.021  range [-0.072,+0.053]  p_wil 0.625  p_NB 0.685
+    [eff] fp_per_24h mean   -3.235  mean|d|   5.577  range [-27.281,+10.538]  p_wil 0.625  p_NB 0.648
+
+  (e) is its own comparison family: 8 paired tests, Bonferroni alpha=0.05 threshold p < 0.0063
+  meeting it on Wilcoxon: 0
+
+
+=== multiple comparisons: 2 paired tests reported ===
+  Bonferroni threshold for alpha=0.05: p < 0.0250; comparisons meeting it: 0 on Wilcoxon, 0 on Nadeau-Bengio
+  comparisons with uncorrected-for-multiplicity p_NB < 0.05: 0
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_p3_summary.csv
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_p3_frontier.csv
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\analysis_p3_admission.csv
