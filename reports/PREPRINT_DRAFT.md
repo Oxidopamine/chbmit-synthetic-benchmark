@@ -1,9 +1,17 @@
-# A fail-closed trust gate for synthetic ictal EEG cannot be evaluated as published: a leakage-safe replication on CHB-MIT
+# Measure what was injected, not what was requested: a leakage-safe replication of trust-gated synthetic EEG augmentation on CHB-MIT
 
 **Abdullah R. Alotaibi**
 
-**Status:** DRAFT v0.1, 2026-08-31. Sections marked **[TODO]** are unwritten. Every number in
+**Status:** DRAFT v0.2, 2026-08-31. Sections marked **[TODO]** are unwritten. Every number in
 Results is reproducible from this repository; provenance for each is given in §8.
+
+> **v0.2 changes, from an internal review.** (1) The claim that admission quality yields *equal
+> deployments* was an equivalence conclusion drawn from a non-significant difference — the exact
+> inference this paper criticises in §4.6. It is restated in §4.4 with a TOST and a confidence
+> interval, and weakened accordingly. (2) The title no longer asserts the published method is
+> unevaluable; the divergence that disabled the gate was **ours**, and §4.2 now says so and answers
+> the obvious objection. (3) §4.5 now states plainly that the tail-control result **replicates the
+> source method's own central claim** rather than presenting it as a discovery.
 
 ---
 
@@ -14,32 +22,31 @@ fail-closed "trust gating" has been proposed to make it safe under subject shift
 trust-gated augmentation (TGA) on CHB-MIT under patient-independent splits, scored at the event
 level with SzCORE conventions, with harm pre-registered before test scoring.
 
-We report three findings. **First**, synthetic ictal augmentation does not beat a one-line
-class-weighted loss; against the strongest single simple baseline the synthetic arm loses by
-0.063 event-F1 on the highest-capacity detector. This is not an artefact of injection dose: we
-sample the source method's own operating band (r ∈ [0.05, 0.30]) and the dose–performance curve is
-monotone with no interior optimum. **Second**, the gate as we first built it *cannot inject a
-dose at all*. Calibrating the admission threshold on real ictal windows — which the teacher
-detector has memorised — admits 6 windows against a target of 251 and 23 against 752, an
-admission rate of 0.4–0.5 % of the candidate pool irrespective of what is requested; the source
-method's own minimum-acceptance safeguard (K_min = 200) is reached in 0 of 9 cells. Restoring the
-published pool rank cut yields exact dose control and makes the matched-volume control
-well-posed for the first time. **Third**, at a real dose teacher-confidence admission produces
-better *models* than a matched random draw (+0.072 event-F1, 8 of 9 cells) but not better
-*deployments* (0.300 vs 0.307): the fail-closed fallback rescues the random arm to the same place.
-The +0.072 does not survive correction for fold dependence.
+Synthetic augmentation does not beat a one-line class-weighted loss, losing 0.063 event-F1 on the
+highest-capacity detector. This is not a dose artefact: sampling the source method's own operating
+band (r ∈ [0.05, 0.30]) leaves the dose–performance curve monotone with no interior optimum.
 
-What the gate does control is the false-alarm tail, and that result is robust: admitted cells
-average −22.6 FP/24 h with 0 of 21 above +20, versus +10.9 and 23 of 60 for reverted cells. It
-survives multiplicity correction, a circularity objection, and stratification by injected dose.
-Crucially it holds for *randomly selected* synthetic (p = 0.0008), so the mechanism is the
-fail-closed decision, not admission quality.
+The gate as we first built it *cannot inject a dose at all*. Calibrating admission on real ictal
+windows — which the teacher detector has memorised — admits 6 windows against a target of 251 and
+23 against 752, irrespective of what is requested; the source method's own minimum-acceptance
+safeguard (K_min = 200) is met in 0 of 9 cells. The divergence was ours and was documented in
+advance as a design choice, yet no output the pipeline produced revealed it. Restoring the
+published pool rank cut gives exact dose control.
 
-We also quantify three evaluation pitfalls that changed our own conclusions: selecting the
-comparison baseline on test inflates it by +0.035 event-F1; scoring a matched-volume control after
-the fail-closed revert makes 18 of 27 cells identical by construction; and the choice of selector
-statistic flips 8 of 9 admission decisions. We report two corrections to our own published
-analysis.
+At a real dose, teacher admission yields better *models* than a matched random draw (+0.072
+event-F1, 8 of 9 cells), but the advantage does not survive fold-dependence correction and is
+undetectable after the fail-closed stage (0.300 vs 0.307). We decline to call that equivalence:
+the study bounds equivalence only at ±0.121 event-F1, wider than the effect itself.
+
+Tail control replicates: admitted cells average −22.6 FP/24 h with 0 of 21 above +20, versus +10.9
+and 23 of 60 reverted, surviving multiplicity correction, a circularity objection, and dose
+stratification. This corroborates the source method's central claim rather than extending it, and
+it holds for *randomly selected* synthetic (p = 0.0008), locating the mechanism in the fail-closed
+decision rather than in admission quality.
+
+We quantify four evaluation pitfalls that changed our own conclusions, including that the
+Nadeau–Bengio variance floor is set by fold count, so **additional seeds cannot buy fold-corrected
+power** — at three folds no number of replicates resolves an effect below ≈0.13 event-F1.
 
 **Keywords:** seizure detection, synthetic data, generative augmentation, patient-independent
 validation, negative results, evaluation methodology
@@ -212,6 +219,32 @@ This is the paper's central methodological finding: a divergence that looked lik
 reparameterisation in the design table **disabled the mechanism**, and it did so silently, because
 the gate continued to produce plausible outputs.
 
+**We should meet the obvious objection directly: this was our divergence, not the source
+method's.** A reader may reasonably respond that we misimplemented TGA, found our
+misimplementation did not work, and wrote a paper about it. Three things distinguish this from
+that reading.
+
+First, the divergence was **documented in advance as a deliberate design choice**, not discovered
+as a bug: calibrating on real ictal windows is a defensible reading of "admit windows the teacher
+finds as convincing as real seizures", and it appears in our implementation-fidelity table from
+the outset. It is the kind of substitution practitioners make routinely when adapting a method to
+a new domain.
+
+Second, **the failure was undetectable from any output the pipeline produced.** Admission rates,
+event-F1, FP/24 h, harm rates and gate decisions were all well-formed and plausible for an entire
+experimental phase. Nothing short of comparing the *realized* injected count against the
+*requested* one exposes it — and no standard reporting template asks for that comparison.
+
+Third, the consequence is not that our numbers were slightly off but that **an entire class of
+question became unanswerable without our noticing**: the matched-volume control cannot separate
+admission quality from dose when the dose is 6 windows, and we published a null from it before
+catching the cause (§4.6, pitfall 2).
+
+The transferable claim is therefore not "TGA does not work". It is that gated augmentation
+pipelines have a failure mode in which a threshold-calibration choice silently reduces the
+intervention to nothing, and that **reporting realized rather than requested quantities is the
+cheap diagnostic that catches it.**
+
 ### 4.3 Dose is not the confound
 
 A referee could object that our negative result was measured at an injection ratio far outside the
@@ -249,19 +282,68 @@ On the augmented models, teacher selection is clearly better:
 p < 0.0063; nothing meets it, and the headline row collapses under the fold-dependence correction.
 We report direction and count; we do not claim significance.
 
-What holds without a p-value is the policy comparison:
+The policy comparison is more interesting, and needs stating carefully:
 
 | arm | pre-revert event-F1 | deployed event-F1 | reverted |
 |---|---|---|---|
 | gated q = 0.95 | **0.277** | 0.300 | **2/9** |
 | random q = 0.95 | **0.205** | 0.307 | **6/9** |
 
-Teacher admission builds better models and passes validation three times as often, yet the
-deployed policies are indistinguishable, with random nominally ahead. The fail-closed stage
-reverts the random arm's bad models to real-only, which lands where teacher selection arrives by
-working. **A good fallback makes a good gate redundant.**
+Teacher admission builds better models (0.277 vs 0.205) and passes validation three times as
+often (2/9 reverts vs 6/9). After the fail-closed stage, we **cannot detect a difference** between
+the deployed policies: paired difference −0.007, naive 95 % CI [−0.079, +0.065], Nadeau–Bengio
+95 % CI **[−0.148, +0.134]**.
 
-### 4.5 What the gate controls: the false-alarm tail
+**We are careful not to read this as equivalence, which would repeat the error we criticise in
+§4.6.** A two one-sided tests procedure establishes equivalence only at margins of ±0.065
+(naive) or **±0.121** (Nadeau–Bengio); at the pre-registered harm threshold of 0.01 the TOST
+p-value is 0.48. The equivalence bound the data supports is therefore *wider than the +0.072
+model-level effect we decline to claim above*. The minimum effect detectable at 80 % power is
+0.100 event-F1 naive and **0.196** under fold-dependence correction.
+
+The honest statement is therefore narrow: **teacher admission's model-level advantage does not
+visibly survive the fail-closed stage, but this study is far too small to establish that the
+advantage is erased.** The mechanism we propose — that reverting the random arm's failures to
+real-only recovers most of what curation buys — is consistent with the reverting counts (2/9 vs
+6/9) and with the fallback result in §4.6, but it is a **hypothesis this design cannot confirm**.
+
+### 4.4.1 Why more seeds would not have helped
+
+It is natural to assume the fix is more replicates. It is not, and the reason generalises beyond
+this study. The Nadeau–Bengio standard error is `sd·√(1/n + ρ)` with ρ = n_test/n_train, so the
+second term **does not shrink with the number of cells**. At our observed sd = 0.094 and ρ = 0.317:
+
+| cells | se (NB) | smallest equivalence margin at 80 % power |
+|---|---|---|
+| 9 | 0.061 | 0.168 |
+| 36 | 0.055 | 0.140 |
+| 120 | 0.053 | 0.134 |
+| ∞ | **0.053** | **0.131** |
+
+Seeds buy precision in the point estimate and nothing in the corrected inference. **The binding
+constraint is the number of folds — that is, disjoint test groups** — because ρ is fixed by the
+split structure:
+
+| design | se (NB) | margin |
+|---|---|---|
+| 3 folds × 3 seeds (this study) | 0.061 | 0.168 |
+| 5 folds × 3 seeds | 0.047 | 0.125 |
+| 10 folds × 3 seeds | 0.033 | 0.084 |
+
+Any patient-independent EEG study reporting fold-corrected inference from three folds is subject
+to this floor regardless of how many seeds it averages. We flag it because the instinct to buy
+power with seeds is cheap and, for this class of inference, ineffective.
+
+### 4.5 What the gate controls: the false-alarm tail (a replication, not a discovery)
+
+**We state the status of this result before reporting it.** The source method's title is about
+governing tail risk under subject shift, and its harm framing — with what probability does
+augmentation harm subject-disjoint generalisation by a clinically meaningful margin — is the same
+object as this section. What follows is therefore **not a new finding**. Its value is that it is,
+to our knowledge, the **first independent replication** of that claim, the first at the **event
+level**, and the first with an explicit **FP/24 h** axis on a rare-event clinical task. Readers
+holding the source paper should weigh it as corroboration, and novelty in this manuscript should
+be sought in §4.2, §4.4.1 and §4.6 instead.
 
 Pooling all 81 gated-family cells and splitting by the gate's own admit/revert decision
 (Δ against real_only, augmented model):
@@ -341,11 +423,18 @@ suggests generative augmentation of ictal EEG is worth its complexity against a 
 loss on this corpus. But the gate does something real and narrow: it bounds the false-alarm tail,
 and it does so through its decision stage rather than its admission rule.
 
-That has a practical consequence. If the fallback is strong, the gate's value is in *rejecting*,
-not in *curating* — and a system builder should invest in the fallback target rather than in
-generator fidelity or admission thresholds. Our own data supports this directly: switching the
-fallback from real-only to the best simple baseline is worth +0.048 event-F1 at r = 0.30, larger
-than any admission effect that survived correction.
+That suggests a practical consequence, which we state as a hypothesis rather than a result. If the
+fallback is strong, the gate's value may lie in *rejecting* rather than in *curating*, and a
+system builder would do better to invest in the fallback target than in generator fidelity or
+admission thresholds. Three strands point this way: the admission advantage is not visible after
+the fail-closed stage (§4.4); switching the fallback from real-only to the best simple baseline is
+worth +0.048 event-F1 at r = 0.30, larger than any admission effect that survived correction; and
+the tail-control separation holds even for randomly selected synthetic (§4.5), which places the
+mechanism in the decision stage.
+
+We stress that §4.4 cannot establish the first strand, only fail to refute it. A study powered for
+equivalence — which, by §4.4.1, means **more folds, not more seeds** — is required before this
+becomes a recommendation rather than a conjecture.
 
 The broader lesson concerns silent mechanism failure. Our admission reference diverged from the
 published rank cut in a way that read, in a design table, as a minor reparameterisation. It

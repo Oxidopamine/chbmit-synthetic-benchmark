@@ -127,15 +127,28 @@ corrections were written to remove. **Direction and count are reportable; signif
 | random q = 0.9917 | 0.220 | 0.306 | 6/9 |
 
 Teacher admission produces better models (0.277 vs 0.205) and gets them past validation three
-times as often (2/9 reverts vs 6/9). Yet **the deployed policies are indistinguishable — 0.300 vs
-0.307, with random nominally ahead.** The fail-closed stage reverts random's bad models to
-`real_only`, which lands where teacher selection arrives by actually working.
+times as often (2/9 reverts vs 6/9). After the fail-closed stage we **cannot detect a difference**
+— 0.300 vs 0.307, with random nominally ahead.
 
-This does not depend on a p-value: it is a statement about what the two policies deliver. It is
-also consistent with the fallback defect already on record — reverting to the best simple baseline
-instead of `real_only` is worth +0.048 at r = 0.30 (`_p2`, 6/9 cells revert).
+> **CORRECTED 2026-08-31 after internal review.** This section originally read "the deployed
+> policies are indistinguishable … this does not depend on a p-value". That was an **equivalence
+> conclusion drawn from a non-significant difference** — the same inference this report criticises
+> elsewhere. The paired difference is −0.007 with a Nadeau–Bengio 95 % CI of **[−0.148, +0.134]**,
+> and TOST establishes equivalence only at a margin of **±0.121** (±0.065 naive); at the
+> pre-registered harm threshold of 0.01, TOST p = 0.48. **The equivalence bound is wider than the
+> +0.072 effect this report declines to claim above.** Minimum detectable effect at 80 % power:
+> 0.100 naive, **0.196** under fold correction.
+>
+> Worse, more seeds cannot fix it. The Nadeau–Bengio standard error is `sd·√(1/n + ρ)` and ρ is
+> fixed by the split structure, so it floors at `sd·√ρ` = 0.053: at 3 folds, no number of
+> replicates resolves below ≈0.13 event-F1. **The binding constraint is folds, not seeds** — 5
+> folds would reach ±0.125 and 10 folds ±0.084.
 
-**A good fallback makes a good gate redundant.** That is the governance finding of this phase.
+The honest statement: teacher admission's model-level advantage does not visibly survive the
+fail-closed stage, but this design is far too small to establish that it is erased. The mechanism
+— reverting random's failures to `real_only` recovers most of what curation buys — is consistent
+with the revert counts and with the fallback result (best-baseline fallback is worth +0.048 at
+r = 0.30, `_p2`, 6/9 cells revert), but it is a **hypothesis this phase cannot confirm**.
 
 ---
 

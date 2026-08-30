@@ -6,8 +6,9 @@ with SzCORE conventions.
 
 The short answer, at n = 9 paired runs per detector across three architecture families:
 **synthetic ictal augmentation performs at parity with simple baselines, the gate reliably
-controls the false-alarm tail, and admission quality improves models without improving
-deployments.** Phase 2 added three things: the negative result is **not** an artifact of
+controls the false-alarm tail, and admission quality improves models — with no detectable
+carry-over to deployments, though this study is too small to call that equivalence.** Phase 2
+added three things: the negative result is **not** an artifact of
 injection dose; the gate as originally built **cannot inject a dose at all** (6–23 windows
 whatever is requested, because the admission threshold is calibrated on data the teacher has
 memorised); and with the published rank cut restored, teacher admission beats a random draw by
@@ -82,8 +83,10 @@ The fail-closed trust gate is **not our invention**. It is adapted from trust-ga
 Our contributions are the **seizure-specific, event-level reformulation** of the admission and
 fail-closed criteria, the **harm characterisation** under a pre-registered definition, and the
 **matched-volume random-gating control** that the source study ran and reported as mixed. Phase 2
-resolves that control at a real dose: teacher admission produces better models but not better
-deployments (see [Q2](#q2--does-admission-quality-matter)).
+resolves that control at a real dose: teacher admission produces better models, with no
+detectable advantage after the fail-closed stage — though the study bounds equivalence only at
+±0.121 event-F1, so this is a failure to detect rather than a demonstration of equivalence
+(see [Q2](#q2--does-admission-quality-matter)).
 
 Implementation fidelity is documented in
 the verification record §2.1. **Two divergences turned out to
@@ -160,65 +163,150 @@ folds. Folds 0–2 were run (train/val/test groups: 14/5/4, 13/6/4, 14/4/5).
 outputs band-limited to the acquisition passband before injection. Nine checkpoints are cached in
 the repository, so the grid reproduces without retraining a generator.
 
-## Pipeline architecture
-
-```mermaid
-flowchart TB
-  subgraph prep["Preprocessing — once per corpus"]
-    A["Raw EDF<br/>686 files, 43 GB"] --> B["Channel audit<br/>18 bipolar montage"]
-    B --> C["Band-pass 0.5–40 Hz<br/>resample 256 Hz"]
-    C --> D[("eeg.zarr<br/>52 GB")]
-    D --> E["Window table<br/>4 s @ 2 s stride<br/>1.75 M windows"]
-    E --> F["Patient-group splits<br/>seed 42"]
-  end
-
-  subgraph cell["Per cell — (fold, seed, detector)"]
-    F --> G["Train groups only"]
-    G --> H["Event-level scarcity<br/>+ negative sampling<br/>ratio 5:1, exclude 60 s"]
-    G --> I["WGAN-GP<br/>fit on train ictal only"]
-    I --> J["Band-limit<br/>0.5–40 Hz + re-z-score"]
-    J --> K["Candidate pool<br/>6 × target"]
-    H --> L["Teacher: real_only<br/>detector"]
-    L --> M{"Trust gate"}
-    K --> M
-    M -->|admitted| N["Train augmented<br/>real + synthetic"]
-    H --> N
-    N --> O{"Fail-closed<br/>selector"}
-    L --> O
-    O -->|pass| P["Deploy augmented"]
-    O -->|fail| Q["Revert to teacher"]
-  end
-
-  P --> R["Test on held-out patients<br/>SzCORE event scoring"]
-  Q --> R
-```
-
-Leakage controls, each enforced in code and covered by tests:
-
-- patient groups are split **before** windowing, never after;
-- generators are fit **only** on the training patients of their fold;
-- validation and test always use full, unmodified real timelines;
-- synthetic windows are training-only and carry per-window provenance;
-- the operating threshold is selected on **validation** and applied unchanged to test.
-
-## The trust gate
-
-Two stages, both event-level reformulations of the published method.
+**Which grid answers which question.** Phase 1 ran the full 189-run grid across all three
+detectors; Phase 2 ran two narrower TCN-only grids, for the reasons in
+[Budget-constrained scope](#budget-constrained-scope). The `n` behind any number below depends on
+which grid produced it:
 
 ```mermaid
 flowchart LR
-  subgraph s1["Stage 1 — Admission (window level)"]
-    A["Candidate pool<br/>6 × target"] --> B["Teacher scores<br/>P(seizure)"]
-    B --> C{"score ≥ τ_q ?"}
-    C -->|yes| D["Admitted"]
-    C -->|no| E["Discarded"]
-    F["τ_q = q-quantile of teacher<br/>scores on REAL ictal"] --> C
+  classDef g1 fill:#eef2ff,stroke:#4338ca,color:#1e1b4b;
+  classDef g2 fill:#fff7ed,stroke:#c2410c,color:#7c2d12;
+  classDef g3 fill:#ecfdf5,stroke:#047857,color:#064e3b;
+  classDef q  fill:#f8fafc,stroke:#475569,color:#0f172a;
+
+  G1["PHASE 1, tag _v2<br/>downstream_gated_v2.csv, 189 runs<br/>3 detectors x 3 folds x 3 seeds x 7 conditions<br/>gate reference = real_ictal"]:::g1
+  G2["PHASE 2a, tag _p2<br/>downstream_gated_p2.csv, 81 runs<br/>TCN only, ratio ladder r in {0.10, 0.30}<br/>gate reference = real_ictal"]:::g2
+  G3["PHASE 2b, tag _p3<br/>downstream_gated_p3.csv, 72 runs<br/>TCN only, r = 1.0, q in {0.95, 0.9917}<br/>gate reference = pool"]:::g3
+
+  G1 --> Q1["Q1 - parity with the simple baselines"]:::q
+  G1 --> Q3["Q3 - no detector heterogeneity left to explain"]:::q
+  G1 --> Q4["Q4 - false-alarm TAIL CONTROL<br/>the only result that survives correction"]:::q
+  G2 --> Q5["Q5 - the null is not a dose artifact"]:::q
+  G2 --> Q6["Q6 - the gate could never inject a dose"]:::q
+  G3 --> Q6
+  G3 --> Q2["Q2 - better models, equal deployments"]:::q
+```
+
+Every cell of every grid is one `(fold, seed, detector)` block, so **n = 9 paired cells** backs
+each comparison — three folds × three seeds — per detector in Phase 1, and for TCN in Phase 2.
+
+## Pipeline architecture
+
+Four stages. **Stage 0 is built once** and shared by every run in the grid; stages 1–3 are
+re-derived per **cell**, where a cell is one `(fold, seed, detector)` block. Yellow nodes are the
+leakage controls.
+
+```mermaid
+flowchart TB
+  classDef data  fill:#eef2ff,stroke:#4338ca,color:#1e1b4b;
+  classDef proc  fill:#f8fafc,stroke:#475569,color:#0f172a;
+  classDef synth fill:#fdf4ff,stroke:#a21caf,color:#4a044e;
+  classDef gate  fill:#fff7ed,stroke:#c2410c,color:#7c2d12;
+  classDef out   fill:#ecfdf5,stroke:#047857,color:#064e3b;
+  classDef rule  fill:#fefce8,stroke:#a16207,color:#713f12;
+
+  subgraph S0["STAGE 0 — corpus, built once, shared by every cell"]
+    direction TB
+    A["Raw CHB-MIT EDF<br/>686 files, 43 GB"]:::data
+    A --> B["Channel audit<br/>18-channel bipolar montage<br/>673 of 676 files retained, 6.6% of events lost"]:::proc
+    B --> C["Resample 256 Hz, band-pass 0.5-40 Hz<br/>zero-phase Butterworth order 4"]:::proc
+    C --> D[("eeg.zarr, 52 GB<br/>+ processed_index.csv")]:::data
+    D --> SPL["LEAKAGE CONTROL - patient groups split from the<br/>recording-level INDEX, before any window exists. Seed 42.<br/>23 groups, 5 folds registered, folds 0-2 run"]:::rule
+    D --> WIN["Window table, metadata only<br/>4 s at 2 s stride<br/>1,746,447 windows, 5,563 ictal = 0.319%"]:::data
   end
-  subgraph s2["Stage 2 — Fail-closed (event level)"]
-    D --> G["Train augmented model"]
-    G --> H{"val event-F1 ≥ teacher + margin<br/>AND val FP/24h ≤ teacher + slack"}
-    H -->|yes| I["Deploy augmented"]
-    H -->|no| J["Revert to real_only"]
+
+  subgraph S1["STAGE 1 — per (fold, seed): training material"]
+    direction TB
+    TR["Train groups of this fold only"]:::proc
+    TR --> TAB["Event-level scarcity 1.0<br/>negative sampling 5:1<br/>peri-ictal +/-60 s excluded"]:::proc
+    TR --> GEN["LEAKAGE CONTROL - WGAN-GP fit on TRAIN ictal only<br/>300 epochs, 9 checkpoints cached in-repo"]:::rule
+    GEN --> BL["Band-limit to 0.5-40 Hz<br/>and re-z-score"]:::synth
+    BL --> POOL["Candidate pool<br/>oversample 6 x target<br/>target = r x n_train_pos"]:::synth
+  end
+
+  subgraph S2["STAGE 2 — per cell (fold, seed, detector): 7 conditions"]
+    direction TB
+    BASE["3 real-data arms<br/>real_only, class_weighted, classical_aug"]:::proc
+    BASE --> TEACH["Teacher = the trained real_only model"]:::gate
+    ADM{"Trust gate, stage 1<br/>admission by teacher confidence"}:::gate
+    POOL --> ADM
+    TEACH -. scores every candidate .-> ADM
+    ADM --> GQ["gated q0.90 / q0.50"]:::synth
+    ADM --> RG["random_gated<br/>matched volume, uniform draw"]:::synth
+    POOL --> UG["ungated<br/>inject the whole draw, no gate"]:::synth
+    GQ --> AUG["Train augmented detector<br/>real windows + admitted synthetic"]:::proc
+    RG --> AUG
+    UG --> AUG
+    TAB --> BASE
+    TAB --> AUG
+  end
+
+  subgraph S3["STAGE 3 — select on VALIDATION, then one pass over test"]
+    direction TB
+    VAL["LEAKAGE CONTROL - score validation timelines,<br/>pick the operating threshold for best event-F1.<br/>Fixed 3-of-5 persistence filter, 60 s alarm merge"]:::rule
+    FC{"Trust gate, stage 2<br/>fail-closed, VALIDATION only"}:::gate
+    VAL --> FC
+    FC -->|pass| DEP["Deploy the augmented model"]:::out
+    FC -->|fail| REV["Revert to the real_only teacher"]:::out
+    DEP --> TEST["LEAKAGE CONTROL - held-out patient timelines, full and<br/>unmodified. The SAME validation-selected threshold,<br/>applied once. SzCORE scoring: event-F1 and FP/24h"]:::rule
+    REV --> TEST
+  end
+
+  SPL --> TR
+  WIN --> TR
+  AUG --> VAL
+  TEACH -. validation reference .-> FC
+```
+
+Leakage controls, in the order they apply — each enforced in code and covered by tests:
+
+- patient groups are split **before** windowing, from the recording-level index, never by
+  partitioning a window table (`chbmit/splits.py`);
+- generators are fit **only** on the training patients of their fold, and their output is
+  band-limited to the acquisition passband before injection;
+- synthetic windows are training-only and carry per-window provenance;
+- the operating threshold is selected on **validation** and applied unchanged to test, together
+  with a fixed 3-of-5 persistence filter and a 60 s alarm merge;
+- the fail-closed decision reads **validation** event-F1 and FP/24 h only — it never sees test;
+- validation and test always run on full, unmodified real timelines.
+
+## The trust gate
+
+Two stages, both event-level reformulations of the published method. Stage 1 decides *which*
+synthetic windows are injected; stage 2 decides whether the resulting model is deployed at all.
+The red node in stage 1 is the divergence that disabled the mechanism for all of Phase 1; the
+green node is the published rule, restored in Phase 2.
+
+```mermaid
+flowchart TB
+  classDef pool  fill:#fdf4ff,stroke:#a21caf,color:#4a044e;
+  classDef gate  fill:#fff7ed,stroke:#c2410c,color:#7c2d12;
+  classDef bad   fill:#fef2f2,stroke:#b91c1c,color:#7f1d1d;
+  classDef good  fill:#ecfdf5,stroke:#047857,color:#064e3b;
+  classDef out   fill:#f8fafc,stroke:#475569,color:#0f172a;
+
+  subgraph ST1["STAGE 1 — admission, window level"]
+    direction TB
+    P["Candidate pool<br/>oversample 6 x target"]:::pool
+    P --> SCORE["Teacher scores every candidate:<br/>P(seizure) from the real_only model.<br/>No manifold distance is computed anywhere."]:::gate
+    SCORE --> CUT{"teacher score >= tau_q ?"}:::gate
+    CUT -->|yes| KEEP["Admitted, capped at the target count"]:::pool
+    CUT -->|no| DROP["Discarded"]:::out
+    R1["reference = real_ictal - AS BUILT, all of Phase 1<br/>tau_q = q-quantile of teacher scores on REAL train ictal.<br/>The teacher has MEMORISED those windows, so tau sits near 1.0<br/>and the gate admits 6-23 windows whatever is requested:<br/>0.4-0.5% of the pool at any target. The mechanism is disabled."]:::bad
+    R2["reference = pool - TGA AS PUBLISHED, Phase 2 default<br/>tau_q = q-quantile of the pool's own scores, i.e. a rank cut.<br/>admitted = min(6(1-q), 1) x n_synth exactly,<br/>so q = 1 - r/6 hits any requested dose r.<br/>Confirmed live: q=0.9917 -> 126, q=0.9500 -> 755."]:::good
+    R1 -. sets tau_q .-> CUT
+    R2 -. sets tau_q .-> CUT
+  end
+
+  subgraph ST2["STAGE 2 — fail-closed selection, event level, VALIDATION only"]
+    direction TB
+    KEEP --> TRAIN["Train the augmented detector<br/>real + admitted synthetic"]:::out
+    TRAIN --> DEC{"val event-F1 >= teacher + 0.00<br/>AND val FP/24h <= teacher + 0.25<br/>AND n_admitted >= K_min"}:::gate
+    DEC -->|all pass| DEPLOY["Deploy the augmented model"]:::good
+    DEC -->|any fail| REVERT["Fail closed: revert to the real_only teacher"]:::bad
+    KMIN["K_min = 1 here; TGA publishes 200.<br/>Under reference=real_ictal, 0 of 9 cells ever reach 200,<br/>so the published safeguard would have rejected every cell."]:::bad
+    KMIN -. constrains .-> DEC
   end
 ```
 
@@ -226,12 +314,15 @@ flowchart LR
 scores on *real* ictal windows, and the teacher saturates there, moving `q` from 0.50 to 0.90
 shifts the threshold by 0.037 while changing admission **174×**. At q = 0.99 nothing is admitted
 at all. The published method instead takes a rank cut on the candidate pool, which is
-well-conditioned; `TrustGateConfig.reference = "pool"` implements that and is the Phase 2 default.
+well-conditioned; `TrustGateConfig.reference = "pool"` implements that, is exposed as
+`--gate-reference pool`, and is the Phase 2 default. The option existed from the start but the
+driver never set it, so it was present and unreachable until Phase 2 — see
+[Q6](#q6--why-did-the-gate-never-inject-anything).
 
-Observed admission across the 27 gated q = 0.90 cells: **median 80 windows** (range 0–580),
-against a target of ~2,508. Revert rate **0.81**. At q = 0.50, 63 % revert and the median
-admitted count is exactly **2,508** — the requested quota — meaning the threshold never binds and
-that arm is really a top-1/6 rank cut, not a confidence threshold.
+Observed admission across the 27 gated q = 0.90 cells of Phase 1: **median 80 windows**
+(range 0–580), against a target of ~2,508. Revert rate **0.81**. At q = 0.50, 63 % revert and the
+median admitted count is exactly **2,508** — the requested quota — meaning the threshold never
+binds and that arm is really a top-1/6 rank cut, not a confidence threshold.
 
 ## Results
 
@@ -278,9 +369,11 @@ indistinguishable:
 | gated q = 0.95 | **0.277** | 0.300 | 2/9 |
 | random q = 0.95 | **0.205** | 0.307 | 6/9 |
 
-The fail-closed stage reverts random's bad models to `real_only`, which lands where teacher
-selection arrives by working. **A good fallback makes a good gate redundant** — that result does
-not depend on a p-value.
+We cannot detect a difference after the fail-closed stage — but the equivalence bound this study
+supports is ±0.121 event-F1 (TOST), *wider than the +0.072 effect above*, so this is underpowered
+rather than a demonstration that the fallback erases the gain. The proposed mechanism — reverting
+random's failures to `real_only` recovers most of what curation buys — is a **hypothesis**,
+supported by the revert counts and the fallback result but not established here.
 
 The +0.072 itself **does not survive correction**: Wilcoxon 0.020, but Nadeau–Bengio **0.140**,
 fold-level 0.103, and Bonferroni for the family requires p < 0.0063. That is the same collapse,
@@ -404,7 +497,7 @@ share each split.
 |---|---|
 | Nadeau–Bengio (variance scaled by `1/n + n_test/n_train`, ratio 0.317) | **no comparison reaches p < 0.05**; minimum p = 0.054 where Wilcoxon reports 0.016 |
 | fold-level t-test (seeds averaged, disjoint test groups) | consistent with the above |
-| Bonferroni over the 48 reported comparisons | threshold p < 0.0010; **only the tail result clears it** |
+| Bonferroni over the 54 reported comparisons | threshold p < 0.0009; **only the tail result clears it** |
 
 Defensible claims from this grid are therefore **direction and count**, not significance — with
 the single exception of the tail-control result.
@@ -559,7 +652,8 @@ evaluation/      SzCORE event scoring, window metrics incl. Brier/ECE, threshold
 experiments/     cell runner and training loop, grid drivers, aggregation
 scripts/         entry points — preprocessing, the multi-seed grid, analysis, diagnostics
 reports/         the verification record (verified findings), DECISION_GATE_1.md (Phase 1 results
-                 and correction), the implementation plan (what remains)
+                 and correction), DECISION_GATE_2.md (Phase 2 results), PREPRINT_DRAFT.md,
+                 the implementation plan (what remains)
 tests/           leakage, scoring, split and gate invariants
 ```
 
@@ -570,6 +664,9 @@ Key documents:
 | [`PREREGISTRATION.md`](PREREGISTRATION.md) | analysis decisions fixed before test scoring |
 | the verification record | every verified number, with reproduction snippets |
 | [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) | Phase 1 results **and the correction to them** |
+| [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) | Phase 2 results — Q5, Q6 and the reopened Q2 |
+| the implementation plan | what remains, and the plan correction Phase 2 forced |
+| [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) | manuscript draft (v0.1; discussion and bibliography still open) |
 | the execution log | execution log, environment notes, known hazards |
 
 ## Limitations
@@ -587,8 +684,11 @@ Stated plainly, because several of them bound the conclusions:
    entirely on validation, so the gate has effectively been evaluated on one near-fixed panel.
 5. **Scarcity fixed at 1.0.** The registered grid includes 0.5 and 0.25, where augmentation has
    most to offer. Not run.
-6. **Admission reference diverges from the published method** (real-ictal quantile rather than a
-   pool rank cut), which makes `q` a poorly-conditioned control and `q = 0.99` unreachable.
+6. **Every Phase 1 number was produced under a broken admission reference.** The real-ictal
+   quantile makes `q` a poorly-conditioned control, puts `q = 0.99` out of reach, and holds
+   admission to 6–23 windows whatever is requested. Phase 2 restored the published pool rank cut
+   (`--gate-reference pool`), but only for the TCN `_p3` grid — Phase 1's three-detector grid was
+   not re-run, and re-running it is the largest outstanding cost in the project.
 7. **Generators are unconditional.** The cVAE's class embedding is constant and
    `wgan_gp_provider.generate()` accepts a `class_label` it never uses. Only the ictal phase is
    generated, which is the convention in this literature but forecloses the label-consistency half
