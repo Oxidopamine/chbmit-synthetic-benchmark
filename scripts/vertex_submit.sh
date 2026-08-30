@@ -33,6 +33,7 @@ NUM_WORKERS="${NUM_WORKERS:-0}"
 # Phase 2 axes. Defaults reproduce Phase 1 exactly, so an unset RATIOS changes nothing.
 RATIOS="${RATIOS:-1.0}"
 RANDOM_QS="${RANDOM_QS:-$QS}"
+GATE_REFERENCE="${GATE_REFERENCE:-real_ictal}"
 # How to shard across the 3-concurrent-job quota ceiling. "detector" is the Phase 1 pattern.
 # "seed" is for reduced grids that run ONE detector: a single job would be ~14 h, long enough
 # that Spot preemption is likely, so split into three ~5 h jobs instead. The run is resumable
@@ -121,6 +122,8 @@ workerPoolSpecs:
           value: "${RATIOS}"
         - name: RANDOM_QS
           value: "${RANDOM_QS}"
+        - name: GATE_REFERENCE
+          value: "${GATE_REFERENCE}"
         - name: NUM_WORKERS
           value: "${NUM_WORKERS}"
 scheduling:

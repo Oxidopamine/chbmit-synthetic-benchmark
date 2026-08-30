@@ -161,6 +161,15 @@ def main():
     ap.add_argument("--ratios", nargs="*", type=float, default=[1.0],
                     help="synthetic injection ratios to cross with every synthetic arm "
                          "(do not pass 0; the r=0 rung is the real_only arm)")
+    # Admission reference. TrustGateConfig has carried this field since Phase 1 but the driver
+    # never set it, so every run so far used "real_ictal" -- a threshold calibrated on windows the
+    # teacher has MEMORISED. Measured consequence: the gate admits 6 windows against a target of
+    # 251 and 23 against 752, i.e. the admitted count is decoupled from the requested dose, and no
+    # ratio ladder can move it (reports/DECISION_GATE_1.md CORRECTION 2; Phase 2 _p2 results).
+    # With "pool" -- the rank cut TGA actually publishes -- admitted = min(oversample*(1-q), 1) *
+    # n_synth exactly, so q becomes direct dose control: q = 1 - r/oversample hits any target r.
+    ap.add_argument("--gate-reference", default="real_ictal", choices=["real_ictal", "pool"],
+                    help="admission reference distribution (default: real_ictal, as Phase 1 ran)")
     ap.add_argument("--epochs", type=int, default=80)          # detector training epochs
     ap.add_argument("--gen-epochs", type=int, default=300)     # WGAN epochs (matches Tier B)
     # DataLoader workers. KEEP THIS AT 0 FOR ANY RUN THAT WILL BE COMPARED WITH ANOTHER.
@@ -289,7 +298,8 @@ def main():
                                      index_df, win, ev, STORE, split, cfg=cfg,
                                      synthetic_provider=bl_wgan, teacher_model=teacher_model,
                                      teacher_result=copy.deepcopy(teacher_res),
-                                     gate_cfg=TrustGateConfig(q=q))
+                                     gate_cfg=TrustGateConfig(q=q,
+                                                              reference=args.gate_reference))
                         rows.append({**rb, "condition": "gated", "q": q, **_evt(r)})
 
                     # Matched-volume control, one per gated arm at the SAME ratio: same pool,
@@ -304,7 +314,8 @@ def main():
                                      synthetic_provider=bl_wgan, teacher_model=teacher_model,
                                      teacher_result=copy.deepcopy(teacher_res),
                                      gate_cfg=TrustGateConfig(q=q, selection="random",
-                                                              selection_seed=seed))
+                                                              selection_seed=seed,
+                                                              reference=args.gate_reference))
                         rows.append({**rb, "condition": "random_gated", "q": q, **_evt(r)})
 
                 done_blocks.add((fold, seed, det))

@@ -29,6 +29,9 @@ QS="${QS:-0.90 0.50}"
 # was not enough); RANDOM_QS is the matched-volume control, one per gated arm.
 RATIOS="${RATIOS:-1.0}"
 RANDOM_QS="${RANDOM_QS:-$QS}"
+# real_ictal (default, as Phase 1 ran) or pool. Under real_ictal the gate admits 6-23 windows
+# whatever the target, so only "pool" gives the gated arm a real dose.
+GATE_REFERENCE="${GATE_REFERENCE:-real_ictal}"
 EPOCHS="${EPOCHS:-80}"
 SYNC_SECS="${SYNC_SECS:-60}"
 NUM_WORKERS="${NUM_WORKERS:-0}"
@@ -142,6 +145,7 @@ cd "$WORK"
 stdbuf -oL -eL python scripts/run_multiseed_downstream.py \
   --folds $FOLDS --seeds $SEEDS --detectors "$DETECTOR" \
   --qs $QS --ratios $RATIOS --random-qs $RANDOM_QS \
+  --gate-reference "$GATE_REFERENCE" \
   --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
 rc=${PIPESTATUS[0]}
 log "driver exit=$rc"
