@@ -1,6 +1,6 @@
 # Related Work — deep literature search (2026-08-28)
 
-Search run against the project as described in `the project notes` / `reports/comprehensive_report.md`.
+Search run against the project as described in `reports/comprehensive_report.md`.
 Each entry marked **[V]** = citation metadata verified from the publisher/API; **[S]** = from a search
 result or third-party summary only — verify before citing.
 

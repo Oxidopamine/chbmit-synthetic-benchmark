@@ -39,7 +39,7 @@ def compute_validation_auprc(val_predictions: List[FilePrediction]) -> float:
     """Window-level average precision on validation — a statistic with no operating point.
 
     ``validation_event_f1`` above is a MAX over a 19-point threshold sweep, so the fail-closed
-    rule compares two *selected maxima* at margin 0 (``the verification record`` §4.2) — the same
+    rule compares two *selected maxima* at margin 0 — the same
     selected-maximum defect the analysis was corrected for. The parent method instead compares a
     threshold-free statistic at margin 0.01. Emitting this per arm lets that comparison be made
     in ANALYSIS, without a second grid: both the augmented and real-only models already exist in

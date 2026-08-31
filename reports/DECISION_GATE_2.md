@@ -37,7 +37,7 @@ as an artifact of this benchmark's own divergence from the published method.**
 
 ## Q5 — Was the negative result an artifact of dose?
 
-**No.** `the verification record` §2.1 and `LITERATURE_AUDIT_2026-08-29.md` §2.3 identified a coverage
+**No.** `LITERATURE_AUDIT_2026-08-29.md` §2.3 identified a coverage
 hole: realized injection took only two values, r ≈ 0.032 and r = 1.00, with nothing in
 [0.05, 0.30] — the band the parent's validation ladder selects from, ceiling 0.30. Since the
 dose–performance curve is theoretically U-shaped, the negative result rested on a single point
@@ -85,7 +85,7 @@ Confirmed live in `_p3`: q = 0.9917 → **126** admitted (predicted 125), q = 0.
 (predicted 752), matched cell-for-cell between teacher and random selection in 9 of 9 cells.
 
 **This is a fidelity-to-published-method finding.** TGA publishes a pool rank cut; this benchmark
-substituted a real-ictal quantile (`the verification record` §2.1 lists it as a known divergence). The
+substituted a real-ictal quantile, a known divergence. The
 substitution did not merely change the operating point — it disabled the mechanism.
 
 Compounding it: **TGA publishes `K_min = 200`; this benchmark used 1.** At both `_p2` rungs,
@@ -113,7 +113,7 @@ pattern that killed the previous headline:
 
 | claim | Wilcoxon | Nadeau–Bengio |
 |---|---|---|
-| retired `+0.083` (Phase 1, `the verification record` §3) | 0.008 | 0.135 |
+| retired `+0.083` (Phase 1) | 0.008 | 0.135 |
 | this `+0.072` | 0.020 | **0.140** |
 
 Same magnitude, same collapse, same cause: nine cells sharing three splits are not nine
@@ -166,7 +166,7 @@ are post-hoc among already-trained arms and cost nothing.
    cells on validation (the gate admits 6/9 and 3/9 because the FP safety constraint also fires);
    the parent's threshold-free AUPRC rule at margin 0.01 admits **1/9 and 0/9**. The two disagree
    on 8 of 9 and 9 of 9 cells. Which statistic the fail-closed rule compares is not a detail, and
-   `the verification record` §4.2's "two selected maxima" critique is the right frame.
+   the "two selected maxima" critique is the right frame.
 
 2. **Fallback target**, confirming CORRECTION 2 at the new rungs: reverting to the best simple
    baseline rather than `real_only` is worth **+0.004** at r = 0.10 and **+0.048** at r = 0.30.
@@ -248,7 +248,7 @@ objection (`DECISION_GATE_1.md` CORRECTION 2), and now dose stratification.
 
 ## Corrections to the plan this phase forced
 
-**`the implementation plan` §2.2 should not have been dropped.** The audit reasoned that
+**Pool-relative admission should not have been dropped from the plan.** The audit reasoned that
 `admit_indices` returns the top-k by teacher score, so `reference` only changes k — "a dose knob,
 not a selection knob" — and recommended dropping the pool-relative sweep. The reasoning is correct
 and the conclusion was wrong: **dose is exactly what was broken.** Pool-relative admission is the

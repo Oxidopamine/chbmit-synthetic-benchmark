@@ -129,7 +129,7 @@ class CVAEProvider(SyntheticProvider):
                 # code averaged reconstruction over N*C*T = N*18*1024 elements but the KL over
                 # N*latent_dim = N*64, over-weighting KL by 18432/64 = 288x -- so a nominal
                 # beta = 1.0 behaved like beta ~ 288 and the model posterior-collapsed. With
-                # this form beta = 1.0 is the true ELBO. (the verification record Sec 4.4.)
+                # this form beta = 1.0 is the true ELBO.
                 # Note: the reconstruction term is now ~18432x larger in absolute value. Adam
                 # is approximately invariant to a global loss rescaling, but if the first
                 # epochs diverge, lower cfg.lr rather than reverting this.

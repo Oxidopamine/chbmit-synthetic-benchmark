@@ -5,7 +5,7 @@ should be. Scope: (a) verify the parent citation at the registries, (b) find the
 work and locate this project's gap in it, (c) test whether Phase 1's findings are novel, already
 known, or contradicted.
 
-**Verification marks** follow `the verification record`:
+**Verification marks:**
 **[S]** read from the primary source during this review · **[R]** recomputed from files in this
 repo · **[U]** unverified.
 
@@ -29,10 +29,10 @@ repo · **[U]** unverified.
 | date | 2026-05-25 |
 | PMID | **42185473** (Europe PMC, 1 hit, no PMCID, not open access) |
 
-`the verification record` §2 is accurate and `LITERATURE.md` §10.1's denial was the error, as already
+The npj citation is correct and `LITERATURE.md` §10.1's denial was the error, as already
 recorded. Note the DOI does **not** surface in general web search — only via direct registry
-lookup. A failed search is not evidence of absence; that is the same trap `the verification record`
-names in its verification standard.
+lookup. A failed search is not evidence of absence; that is the same trap this project's
+verification standard names.
 
 **No independent replication, audit, or evaluation of TGA exists** [S]. Searches for one return
 only the preprint and this repo's own framing. This project is the first — which is a stronger
@@ -42,7 +42,7 @@ claim than it has been making.
 
 ## 2. Three corrections to documents in this repo
 
-### 2.1 · SzCORE **was** retitled at v2 — `the verification record` §6 is wrong
+### 2.1 · SzCORE **was** retitled at v2 — the earlier correction is wrong
 
 Fetched the v1 header directly [S]:
 
@@ -51,8 +51,8 @@ Fetched the v1 header directly [S]:
 | **v1** | 19 May 2025 | *SzCORE as a benchmark: report from the seizure detection challenge at the 2025 AI in Epilepsy and Neurological Disorders Conference* |
 | **v2** | 18 May 2026 | *Quantifying the Generalization Gap in Seizure Detection: A Large-Scale Empirical Benchmark via the SzCORE Challenge* |
 
-`the verification record:375-376` asserts "**identical titles** — `related_work_v2`'s 'retitled at v2'
-is wrong", and `:452` repeats it as a correction table row. **Both are wrong; `related_work_v2.md`
+An earlier correction asserted "**identical titles** — `related_work_v2`'s 'retitled at v2'
+is wrong", and repeated it as a correction-table row. **Both are wrong; `related_work_v2.md`
 was right.** Corrected in place, this file cited as the source.
 
 This is the third reversal on a citation detail in this repo (TGA existence, then TGA venue, now
@@ -63,7 +63,7 @@ confirmed correct [S].
 
 ### 2.2 · The parent's random-gating control mostly favours **random** — report its numbers
 
-`the verification record` §2.2 quotes the parent's conclusion accurately but never reports the
+Our earlier summary quotes the parent's conclusion accurately but never reports the
 underlying comparisons. From the full text (PainMunich, 25% scarcity; harm rate, lower better) [S]:
 
 | comparison | trust gating | random gating | winner |
@@ -86,7 +86,7 @@ correction, not just a null.
 
 ### 2.3 · The dose deviation is real but mis-framed — it is a *coverage hole*, not a ratio mismatch
 
-`the verification record` §2.1 correctly records the parent's ladder
+Our earlier summary correctly records the parent's ladder
 `r ∈ {0, 0.02, 0.05, 0.08, 0.10, 0.15, 0.20, 0.30}` and this repo's hardcoded
 `synthetic_ratio = 1.0`, and marks it **Critical**. It frames the defect as *conflating* dose with
 admission quality. That framing is right but incomplete, and the incomplete part is what
@@ -147,8 +147,8 @@ GP-EEG's own +2.75 F1 headline on CHB-MIT is therefore a sample-level number wit
 class-weighting comparison — exactly the fragility this project quantified when it found that
 baseline choice swings the apparent effect (±0.13) by more than the effect itself (0.01–0.06).
 
-**Siena is now a comparability requirement, not reach** (`the implementation plan` §4.2 already
-says so; this confirms it from the source). GP-EEG established CHB-MIT + Siena as the expected pairing.
+**Siena is now a comparability requirement, not reach** (the plan already says so; this confirms
+it from the source). GP-EEG established CHB-MIT + Siena as the expected pairing.
 
 ---
 
@@ -206,7 +206,7 @@ same object as this project's Q4.
 
 **Q4 is a replication, not a discovery.** It remains valuable and should be reported as what it
 is: the **first independent replication of TGA**, the first at **event level**, and the first with
-an explicit **FP/24h** axis on a rare-event clinical task. But `the project notes`'s "ACTUAL HEADLINE"
+an explicit **FP/24h** axis on a rare-event clinical task. But the "ACTUAL HEADLINE"
 framing overstates it, and a referee holding the parent paper will say so.
 
 Novelty has to be carried by: the seizure-specific event-level reformulation (the parent contains
@@ -228,9 +228,9 @@ instance of a documented, citable pattern, which makes it considerably more defe
 
 Ungated augmentation was the best-calibrated arm: **Brier 0.359 vs real-only 0.390**; **ECE 0.327
 vs 0.384**; strict gating (q=0.99) returns to real-only levels (Brier 0.385, ECE 0.384) [S].
-`the verification record` §2.3 is accurate. The parent's own framing — *"governance choices can trade
+Our earlier summary is accurate. The parent's own framing — *"governance choices can trade
 off different clinically relevant axes (tail risk vs calibration vs decision utility)"* — is a
-better frame for `the implementation plan` §0.3 than "the parent's most uncomfortable finding".
+better frame than "the parent's most uncomfortable finding".
 
 ---
 
@@ -238,7 +238,7 @@ better frame for `the implementation plan` §0.3 than "the parent's most uncomfo
 
 | item | before | after |
 |---|---|---|
-| **Ratio ladder** (`the implementation plan` §2.3) | third item of Phase 2, "restore for completeness" | **first priority; a validity requirement.** Closes a coverage hole at r ∈ [0.05, 0.30] that the headline negative result currently depends on |
+| **Ratio ladder** (plan §2.3) | third item of Phase 2, "restore for completeness" | **first priority; a validity requirement.** Closes a coverage hole at r ∈ [0.05, 0.30] that the headline negative result currently depends on |
 | **Pool-relative q sweep** (§2.2) | a Phase 2 experiment | **drop the sweep.** Conditional on admitted count k, `admit_indices` returns the same top-k set for either reference [R] — it is a dose sweep. The parent's real knob is r |
 | **Q2 / `random_gated`** | a control that "resolves against admission quality" | **a correction to the parent's mechanism claim.** Needs to be run at doses inside the parent's range to carry that weight |
 | **Q4 / tail control** | "the ACTUAL HEADLINE" | **first independent replication**, first at event level with FP/24h. Real, but not novel in kind |

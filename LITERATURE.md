@@ -102,7 +102,7 @@ published: NA              server: bioRxiv
 > (`10.1038/s41746-026-02778-0`, 2026-05-25; PMID 42185473). The bioRxiv `published: NA` field
 > is **stale** — it is not evidence of preprint status. The preprint DOI
 > `10.64898/2026.01.26.701638` is also real and resolves; the npj article is the version of
-> record. `the implementation audit` was right about this and §10.1 corrects the earlier claim here.
+> record. §10.1 below corrects the earlier claim here.
 
 Datasets: PainMunich (n=189 — 101 chronic-pain, 88 controls, resting-state) and BCI IV-2a
 (n=9, motor imagery). Metric: **AUROC only**, at window and participant level. Harm defined
@@ -214,7 +214,7 @@ TGA's non-monotonic-in-`q` result (§2.2).
    teacher score, making `k` (not `q`) the control.
 3. Only then sweep the margin / fail-closed slack.
 
-This converts next-step #2 in `the project notes` from empirical knob-twiddling into a diagnosed,
+This converts the generator-fidelity next step from empirical knob-twiddling into a diagnosed,
 citable correction.
 
 **Refuted hypothesis (recorded so it is not re-investigated):** the admission threshold at
@@ -276,8 +276,7 @@ datasets* — arXiv:2508.07253.
 
 ## 6. Generator evaluation: retire discriminator-AUC
 
-The observed saturation of real-vs-synthetic discriminator AUC at 1.0 (documented in
-`the project notes`) is a known dead end. **[summary]** Current practice for generative time-series /
+The observed saturation of real-vs-synthetic discriminator AUC at 1.0 is a known dead end. **[summary]** Current practice for generative time-series /
 EEG evaluation:
 
 - **TSTR (train-on-synthetic, test-on-real)** — the standard functional utility metric.
@@ -339,7 +338,7 @@ straightforward upgrade to `synthetic/quality_checks.py`.
 
 ---
 
-## 10. Reconciliation with `reports/related_work.md` and `the implementation audit`
+## 10. Reconciliation with `reports/related_work.md`
 
 Two untracked files covering similar ground were already present in the working tree when
 this review was written. They **disagree with each other** on TGA's publication status, and
@@ -349,8 +348,7 @@ one of them is wrong in a way that would damage a submission.
 
 > **This section was wrong. The correction below supersedes it.** An earlier draft of §10.1
 > asserted that TGA is preprint-only and instructed the reader not to cite the *npj Digital
-> Medicine* version. **Do not follow that instruction.** `the implementation audit` and
-> `reports/related_work_v2.md` are correct.
+> Medicine* version. **Do not follow that instruction.** `reports/related_work_v2.md` is correct.
 
 **Cite the peer-reviewed version of record:**
 
@@ -374,11 +372,11 @@ Resolve DOIs through Crossref and Europe PMC before asserting that anything is u
 
 The earlier claim that the bioRxiv DOI prefix `10.64898` is invalid is *also* wrong — the
 preprint is real. Both records exist; the npj article is the version of record. The
-`github.com/danielchoi0315/TGA-repo` code link asserted in `the implementation audit` remains unverified.
+`github.com/danielchoi0315/TGA-repo` code link asserted for the method remains unverified.
 
 **Consequence for positioning:** TGA is unambiguously prior art in a high-visibility venue.
 "Propose"/"novel" framing for the gate is off the table, and implementation fidelity to the
-published specification becomes a live referee question — see `the implementation audit`.
+published specification becomes a live referee question.
 
 ### 10.2 Its analytical claims — one overstated, one probably right
 
@@ -402,7 +400,6 @@ published specification becomes a live referee question — see `the implementat
 
 Superseded. `reports/related_work_v2.md` is the positioning document of record (it carries
 the correct citation); `reports/related_work.md` is retained only as a search log with
-provenance. `the implementation audit` is the implementation-audit document of record: its
-citation correction is **right** (§10.1 above), its code-level findings were independently
-re-verified against the repository, and only its "dose-response" reading in finding 03 needs
-the qualification in §10.2 and in `reports/action_plan.md`.
+provenance. The implementation audit behind §10.1–§10.2 stands: its citation correction is
+**right** (§10.1 above) and its code-level findings were independently re-verified against the
+repository; only its "dose-response" reading needs the qualification in §10.2.

@@ -687,7 +687,7 @@ returned an all-NaN report; the numbers in §4.2–§4.3 were correct but were n
 command as printed. Fixed in `scripts/analyze_multiseed.py`.
 
 Full experimental record, including two corrections to our own analysis:
-`reports/DECISION_GATE_1.md`, `reports/DECISION_GATE_2.md`. Execution log: `the execution log`.
+`reports/DECISION_GATE_1.md`, `reports/DECISION_GATE_2.md`.
 
 ## References
 

@@ -97,9 +97,8 @@ chronic-pain resting-state EEG (189 subjects) and low-data motor-imagery BCI. Un
 
 > **Open item — do not draft from the block above.** The title changed between the preprint and the npj
 > article, so the numbers and framing may have changed too. Re-read the npj version and re-derive it.
-> See also `the implementation audit` in this repo, which reports divergences between the published
-> specification and our implementation. Those must be resolved before we claim to have reformulated
-> *their* method. **(That audit was not written by me and I have not verified its claims.)**
+> There are also known divergences between the published specification and our implementation.
+> Those must be resolved before we claim to have reformulated *their* method.
 
 **For the paper.** "Adapt" and "reformulate", never "propose" or "novel" — and this matters *more* now
 that TGA is peer-reviewed in a high-visibility venue: the gate is unambiguously prior art and reviewers
@@ -404,7 +403,7 @@ numbers alongside if it is the former.
 - **The significant effect is on the augmented model, not the deployed gate.** Do not let the abstract
   blur +0.083 (available) into +0.034 (delivered).
 - **The method we adapt is peer-reviewed in a high-visibility venue.** TGA is *npj Digital Medicine*,
-  May 2026 — unambiguously prior art. Resolve the implementation divergences in `the implementation audit`
+  May 2026 — unambiguously prior art. Resolve the known implementation divergences
   before claiming to have reformulated their method.
 - **Timing.** GP-EEG appeared January 2026, TGA published May 2026; the niche between them is unclaimed
   but narrowing.
@@ -448,7 +447,7 @@ Each of these rests only on **[V]** claims.
 1. **Declare SzCORE compliance, and confront the false-alarm gap in the same breath** (§9.1). Report one
    operating point at a leaderboard-comparable FP/day; caveat all cross-dataset comparison.
 2. **Resolve the §6 arithmetic** and state means-vs-pooled in the caption (§9.2).
-3. **Audit `the implementation audit`'s claims yourself**, then fix any real implementation divergence from
+3. **Re-derive the implementation-divergence claims yourself**, then fix any real divergence from
    the npj specification before claiming to reformulate it.
 4. **Cite GP-EEG prominently; decide race or absorb.** At minimum state the delta; better, run its
    baselines or add it as a third generator arm.

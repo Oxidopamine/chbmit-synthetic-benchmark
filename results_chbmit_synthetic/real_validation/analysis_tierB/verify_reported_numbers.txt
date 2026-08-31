@@ -1,0 +1,99 @@
+==============================================================================
+Table 1 -- real_only vs BEST SIMPLE BASELINE at scarcity 1.0
+  reported: TCN 0.157 -> 0.320 (+0.163) | LCT 0.186 -> 0.296 (+0.110) |
+              EEGNet 0.168 -> 0.182 (+0.015)
+==============================================================================
+det       real_only  best simple      gap   per-fold best arm
+tcn           0.157        0.320   +0.163   ['class_weighted', 'classical_aug', 'classical_aug', 'classical_aug', 'class_weighted']
+lct           0.186        0.296   +0.110   ['class_weighted', 'class_weighted', 'classical_aug', 'class_weighted', 'classical_aug']
+eegnet        0.168        0.182   +0.015   ['class_weighted', 'real_only', 'real_only', 'real_only', 'class_weighted']
+
+==============================================================================
+Table 2 -- per-condition delta vs real_only at scarcity 1.0
+  reported TCN: class_weighted +0.112 (5/5), classical_aug +0.115 (5/5),
+             ungated(cVAE) +0.022 (2/5);  LCT: +0.077 (4/5), +0.009 (2/5), +0.054 (4/5);
+             EEGNet: -0.034 (2/5), -0.018 (1/5), +0.096 (3/5)
+==============================================================================
+det                 class_weighted             classical_aug     ungated_synthetic_aug
+tcn                   +0.112 (5/5)              +0.115 (5/5)              +0.022 (2/5)
+lct                   +0.077 (4/5)              +0.009 (2/5)              +0.054 (4/5)
+eegnet                -0.034 (2/5)              -0.018 (1/5)              +0.096 (3/5)
+
+Side-by-side: 'class_weighted TCN reaches event-F1 0.269'
+  class_weighted TCN mean event-F1 = 0.269   real_only = 0.157
+
+class_weighted TCN 'cuts false alarms sharply (11.8 -> 0.8, 74.0 -> 12.3,
+             18.4 -> 6.5 FP/24h)'
+condition  class_weighted  real_only
+fold                                
+0                    0.84      11.84
+1                   12.34      73.99
+2                    6.46      18.41
+3                    4.64       4.62
+4                  104.58     117.75
+
+==============================================================================
+Check (a) -- parameter counts constant across cells
+  reported EEGNet 1,905 | LCT 120,834 | TCN 129,441 (EEGNet 68x smaller than TCN)
+==============================================================================
+  eegnet   [1905]  (constant: True)
+  lct      [120834]  (constant: True)
+  tcn      [129441]  (constant: True)
+  TCN / EEGNet ratio = 67.9x
+
+==============================================================================
+Check (b) -- ungated cVAE delta across ALL scarcities
+  reported EEGNet +0.048 (11/15), TCN -0.005 (6/15), LCT +0.013 (9/15)
+==============================================================================
+  eegnet   +0.048 (11/15)
+  tcn      -0.005 (6/15)
+  lct      +0.013 (9/15)
+
+==============================================================================
+Are the simple baselines really generator-independent?
+==============================================================================
+  generator column values: ['(empty)']
+  n_synth_injected values: [0]
+============================================================================================
+scarcity 1.0   (n = 5 folds, seed 42, cVAE)
+============================================================================================
+det     arm                         dF1 vs real  dF1 vs REG  dFP vs REG  harm REG  harm real
+eegnet  ungated_synthetic_aug            +0.096      +0.081       -7.95      0.60       0.60
+eegnet  trust_gated_synthetic_aug        +0.000      -0.015       -0.62      0.20       0.00
+lct     ungated_synthetic_aug            +0.054      -0.057      +24.03      1.00       0.60
+lct     trust_gated_synthetic_aug        +0.000      -0.110      +13.73      1.00       0.00
+tcn     ungated_synthetic_aug            +0.022      -0.140      +41.16      1.00       0.80
+tcn     trust_gated_synthetic_aug        +0.000      -0.163       +5.86      1.00       0.00
+
+============================================================================================
+scarcity 0.5   (n = 5 folds, seed 42, cVAE)
+============================================================================================
+det     arm                         dF1 vs real  dF1 vs REG  dFP vs REG  harm REG  harm real
+eegnet  ungated_synthetic_aug            +0.029      -0.045       +6.17      0.80       0.60
+eegnet  trust_gated_synthetic_aug        +0.000      -0.074      +15.95      0.60       0.00
+lct     ungated_synthetic_aug            -0.037      -0.127       -3.81      0.80       0.60
+lct     trust_gated_synthetic_aug        +0.000      -0.090      +15.30      0.80       0.00
+tcn     ungated_synthetic_aug            -0.003      -0.106      +50.80      1.00       0.80
+tcn     trust_gated_synthetic_aug        +0.000      -0.103       +3.95      0.80       0.00
+
+============================================================================================
+scarcity 0.25   (n = 5 folds, seed 42, cVAE)
+============================================================================================
+det     arm                         dF1 vs real  dF1 vs REG  dFP vs REG  harm REG  harm real
+eegnet  ungated_synthetic_aug            +0.019      -0.028       +1.09      0.60       0.60
+eegnet  trust_gated_synthetic_aug        +0.000      -0.047      -11.51      0.60       0.00
+lct     ungated_synthetic_aug            +0.023      -0.014      -17.25      0.40       0.60
+lct     trust_gated_synthetic_aug        +0.000      -0.037       +8.41      0.80       0.00
+tcn     ungated_synthetic_aug            -0.034      -0.149      +52.51      1.00       0.80
+tcn     trust_gated_synthetic_aug        +0.000      -0.114      +73.29      0.60       0.00
+
+============================================================================================
+POOLED over all scarcities and folds (n = 15 per detector), the headline question:
+  does the SYNTHETIC arm beat the best simple baseline, or only real_only?
+============================================================================================
+  eegnet  ungated_synthetic_aug      vs real_only +0.048 (11/15)    vs REGISTERED +0.002 (8/15)
+  eegnet  trust_gated_synthetic_aug  vs real_only +0.000 (0/15)    vs REGISTERED -0.046 (0/15)
+  lct     ungated_synthetic_aug      vs real_only +0.013 (9/15)    vs REGISTERED -0.066 (5/15)
+  lct     trust_gated_synthetic_aug  vs real_only +0.000 (0/15)    vs REGISTERED -0.079 (0/15)
+  tcn     ungated_synthetic_aug      vs real_only -0.005 (6/15)    vs REGISTERED -0.132 (1/15)
+  tcn     trust_gated_synthetic_aug  vs real_only +0.000 (0/15)    vs REGISTERED -0.127 (0/15)

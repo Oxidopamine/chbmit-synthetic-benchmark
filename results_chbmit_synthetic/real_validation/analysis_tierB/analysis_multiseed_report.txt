@@ -39,7 +39,7 @@ Nadeau-Bengio n_test/n_train over folds [np.int64(0), np.int64(1), np.int64(2)]:
     (all gated-family cells pooled; delta = AUGMENTED model - real_only)
   admitted  n=  9  mean dFP/24h    -8.96  median    -2.00  worst    +6.07  mean dF1 +0.084
   reverted  n= 27  mean dFP/24h   +19.17  median   +17.28  worst   +99.88  mean dF1 +0.011
-  all p-values below are TWO-SIDED (halve them for the one-sided form; the verification record Sec 3.3 quotes the one-sided values)
+  all p-values below are TWO-SIDED (halve them for the one-sided form; the write-up quotes the one-sided values)
   dFP/24h  Mann-Whitney p = 0.0004   within-fold permutation p = 0.0078 (obs diff -28.13)
   tail dFP/24h > +20: admitted 0/9, reverted 12/27  Fisher p = 0.0163
   dF1      Mann-Whitney p = 0.1651  (the axis the gate does NOT reliably select on)

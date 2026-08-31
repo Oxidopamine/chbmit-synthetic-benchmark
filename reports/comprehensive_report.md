@@ -21,7 +21,7 @@
 > `real_only`, so its harm is zero **by construction**. Against the registered reference the
 > same cells score harm 1.00 for TCN and LCT.
 >
-> Authority: `the verification record`, then `the phase-0 session report`.
+> Authority: `README.md`, then `reports/DECISION_GATE_1.md`.
 
 *Machine Learning for Biomedical Signals. Report date: 4 July 2026.*
 *Status: baselines + core experiment complete; generator-fidelity, gate-mechanism, single-fold and **multi-seed × multi-fold (n=9) downstream experiments complete**; a real-data positive-control run is in progress. Single dataset (CHB-MIT); second-dataset and leave-one-patient-out validation pending.*

@@ -2,8 +2,7 @@
 
 Reads ``analysis_tierB/downstream_gated<tag>.csv`` (written incrementally by
 run_multiseed_downstream.py) and reports, PER DETECTOR, paired statistics over the
-(fold, seed) cells. Four things distinguish this from the original version, all required by
-``the verification record``:
+(fold, seed) cells. Four things distinguish this from the original version:
 
 (a) **The registered reference.** ``PREREGISTRATION.md`` Sec 3 pairs against "the best simple
     baseline per (fold, seed)" -- the best of {real_only, class_weighted, classical_aug} -- not
@@ -598,7 +597,7 @@ def main():
                                                   tail["fold"].to_numpy(), n_perm=args.n_perm)
             (a, b, c, d), p_f = fisher_tail(tail["delta_fp24h_aug"].to_numpy(), g)
             print("  all p-values below are TWO-SIDED (halve them for the one-sided form; "
-                  "the verification record Sec 3.3 quotes the one-sided values)")
+                  "the write-up quotes the one-sided values)")
             print(f"  dFP/24h  Mann-Whitney p = "
                   f"{mannwhitney_p(adm['delta_fp24h_aug'], rev['delta_fp24h_aug']):.4f}   "
                   f"within-fold permutation p = {p_perm:.4f} (obs diff {obs:+.2f})")

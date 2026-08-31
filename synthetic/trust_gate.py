@@ -19,9 +19,9 @@ address (see ``PREREGISTRATION.md``). The gate has two stages:
    nothing else. TGA's covariance-manifold audit is a separate, unimplemented component; do not
    describe this gate as enforcing it. The real-ictal reference is badly conditioned in
    practice, because the teacher saturates on real ictal: q 0.50 -> 0.90 moves the threshold by
-   0.037 and changes admission 174x, q = 0.99 admits nothing at all (``the verification record``
-   §2.1), and in the live grids it admitted 6 windows against a target of 251 -- i.e. it
-   disabled the mechanism (``DECISION_GATE_2.md`` Q6). It is retained to reproduce Phases 1-2
+   0.037 and changes admission 174x, q = 0.99 admits nothing at all, and in the live grids it
+   admitted 6 windows against a target of 251 -- i.e. it disabled the mechanism
+   (``DECISION_GATE_2.md`` Q6). It is retained to reproduce Phases 1-2
    and for the positive control, never as a default.
 
 2. **Fail-closed selection (event-level).** After training the augmented detector on
@@ -60,7 +60,7 @@ class TrustGateConfig:
     # against a target of 251 and 23 against 752 -- the admitted count is decoupled from the
     # request, and no ratio ladder moves it. It is kept ONLY to reproduce Phases 1-2 and for the
     # positive control, where a real-ictal candidate pool makes it the right reference.
-    # See the verification record Sec 2.1 and DECISION_GATE_2.md Q6.
+    # See DECISION_GATE_2.md Q6.
     reference: str = "pool"             # "pool" (published) | "real_ictal" (Phases 1-2)
     # Which windows to keep once the admitted COUNT is fixed. "random" is the matched-volume
     # control the parent paper runs: same number of windows, drawn uniformly from the pool.

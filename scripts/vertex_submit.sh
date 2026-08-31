@@ -3,8 +3,8 @@
 #
 # WHY PER-DETECTOR. The three detectors are independent: each trains its own real_only teacher
 # and its own augmented arms, and nothing crosses between them. Splitting by detector turns a
-# ~20-35 h serial run into three parallel ~7-12 h jobs. the project notes' "never run two pipelines
-# concurrently" was about a shared 62 GB RAM cgroup on one pod; on Vertex each job is its own VM
+# ~20-35 h serial run into three parallel ~7-12 h jobs. The "never run two pipelines
+# concurrently" rule was about a shared 62 GB RAM cgroup on one pod; on Vertex each job is its own VM
 # with its own RAM, so it does not apply. Each job writes its own tagged CSV; merge afterwards
 # with scripts/vertex_collect.sh.
 #

@@ -13,8 +13,7 @@ augmentation (TGA):
 > reduces performance drops when generalizing to new patients." *npj Digital Medicine*
 > **9(1), art. 634**, DOI `10.1038/s41746-026-02778-0`, 25 May 2026, PMID 42185473.
 
-This is the **version of record**, confirmed at Crossref and Europe PMC
-(`the verification record` §2). The bioRxiv preprint
+This is the **version of record**, confirmed at Crossref and Europe PMC. The bioRxiv preprint
 `10.64898/2026.01.26.701638` is real but superseded; its `published: NA` field is stale and
 is **not** evidence of preprint status. Cite the npj article, not the preprint.
 

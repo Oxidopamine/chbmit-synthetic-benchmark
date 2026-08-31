@@ -6,7 +6,7 @@ jobs, 13.1 h wall-clock, no preemptions.
 
 Reproduce: `python3 scripts/analyze_multiseed.py --tag _v2`
 
-**Stop point.** `the working brief` §8 says to report here and not auto-continue to Phase 2.
+**Stop point.** Report here; do not auto-continue to Phase 2.
 
 ---
 
@@ -44,8 +44,8 @@ baseline in disguise.
 Ungated is no better (−0.063 / −0.096 / −0.161 vs registered). The strongest single statement:
 **for LCT and TCN, not one of nine cells beat the registered reference under any gated arm.**
 
-This confirms `the verification record` §5.1 at n = 9 per detector, on a rebuilt data pipeline and a
-detector (LCT) that was absent from the original grid.
+This confirms the earlier scarcity-axis result at n = 9 per detector, on a rebuilt data pipeline
+and a detector (LCT) that was absent from the original grid.
 
 ## Q2 — Does `random_gated` match `gated`?
 
@@ -92,8 +92,8 @@ gate's own admit/revert decision (Δ = augmented model − `real_only`):
 - Δevent-F1 separation: **p = 0.092** — weak, as before
 
 The asymmetry is the finding, now at n = 81 versus n = 36 in the original grid: **the gate is a
-false-alarm tail controller and not an event-F1 selector.** This is the one claim from
-`the verification record` §3.3 that survives Phase 1 untouched, and it is independent of the reference
+false-alarm tail controller and not an event-F1 selector.** This is the one pre-Phase-1 claim
+that survives Phase 1 untouched, and it is independent of the reference
 choice — it compares admitted against reverted cells, never against a baseline.
 
 ---
@@ -172,7 +172,7 @@ remains is stronger and cleaner than a contested effect size —
 
 The generator was audited and is not the culprit: no mode collapse (diversity ratio 0.911 of
 real), no memorisation (NN ratio 1.156), correct normalised space, band-limiting effective
-(out-of-band power 0.0093 → 0.0005). See `the execution log`, "DEBUG PASS".
+(out-of-band power 0.0093 → 0.0005).
 
 ---
 
@@ -191,8 +191,8 @@ Mean event-F1 per arm (n = 9 cells):
 
 For eegnet and lct the best-of-3 reference exceeds **every individual baseline** by 0.07-0.10.
 No baseline is that good; that gap is the max-of-three-noisy-estimates bias. It is the same
-selected-maximum defect `the verification record` §4.2 identifies in the gate's own fail-closed
-selector, reproduced here in the analysis that was auditing it.
+selected-maximum defect identified in the gate's own fail-closed selector, reproduced here in
+the analysis that was auditing it.
 
 **Against single pre-specified baselines** (gated q0.90, Δevent-F1, cells better of 9):
 
@@ -210,7 +210,7 @@ meaningfully harms. The largest single loss is **TCN vs `class_weighted` (−0.0
 statement holds only against the biased best-of-3 reference and must not be quoted without it.
 
 > **Amended.** This was written as "the one genuine loss". Drop that phrasing: cross-family
-> comparisons are not initialisation-controlled (`the project notes`, unseeded-init defect; `README.md`
+> comparisons are not initialisation-controlled (unseeded-init defect; `README.md`
 > Known issue #1) and the run-to-run floor at 80 epochs was never measured, so −0.063 cannot be
 > separated from noise. The direction is defensible; the magnitude is not.
 
@@ -342,7 +342,7 @@ and more mechanical:
 
 > At q = 0.90 the admission stage is **inert because it admits ~3% of the intended dose**. That
 > is a fact about threshold calibration — the real-ictal reference and the teacher's saturation
-> on real ictal, already flagged in `synthetic/trust_gate.py`, `the verification record` §2.1 and
+> on real ictal, already flagged in `synthetic/trust_gate.py` and
 > `README.md` "Known issues" #2 — not a finding about whether admission quality can matter.
 
 Known issue #2 is the direct mechanism here: the threshold is calibrated on the teacher's *own
@@ -410,8 +410,7 @@ automatically.
 
 The claim to retire everywhere it appears: *`random_gated` matches `gated` to within 0.009,
 therefore admission adds nothing.* It appears in the Q2 section above, in the "defensible
-claims" list, in CORRECTION 1's "What is unaffected", in `README.md`, in `the execution log`, and as a
-decision branch in `the implementation plan`; all have been marked.
+claims" list, in CORRECTION 1's "What is unaffected" and in `README.md`; all have been marked.
 
 
 ---
@@ -446,4 +445,4 @@ torch and then samples on the GPU, leaving the CPU stream that `build_model` dra
 contrasts in this grid were init-controlled all along; only comparisons against the three pool-free
 baselines were not.
 
-Full working: `the 2026-08-31 audit` §2.
+Full working: the 2026-08-31 audit, §2.

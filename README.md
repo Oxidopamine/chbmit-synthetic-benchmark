@@ -88,9 +88,8 @@ detectable advantage after the fail-closed stage — though the study bounds equ
 ±0.121 event-F1, so this is a failure to detect rather than a demonstration of equivalence
 (see [Q2](#q2--does-admission-quality-matter)).
 
-Implementation fidelity is documented in
-the verification record §2.1. **Two divergences turned out to
-matter more than we understood when we listed them**, and both are now quantified:
+Implementation fidelity against the published method is documented below. **Two divergences
+turned out to matter more than we understood when we listed them**, and both are now quantified:
 
 - **Admission reference.** TGA cuts by rank on the candidate pool; we thresholded on a quantile
   of real ictal windows. Because the teacher has memorised those windows, the threshold sits near
@@ -694,9 +693,8 @@ evaluation/      SzCORE event scoring, window metrics incl. Brier/ECE, threshold
                  patient-level aggregation, paired statistics and tail risk
 experiments/     cell runner and training loop, grid drivers, aggregation
 scripts/         entry points — preprocessing, the multi-seed grid, analysis, diagnostics
-reports/         the verification record (verified findings), DECISION_GATE_1.md (Phase 1 results
-                 and correction), DECISION_GATE_2.md (Phase 2 results), PREPRINT_DRAFT.md,
-                 the implementation plan (what remains)
+reports/         DECISION_GATE_1.md (Phase 1 results and correction), DECISION_GATE_2.md
+                 (Phase 2 results), PREPRINT_DRAFT.md, related work and literature audit
 tests/           leakage, scoring, split and gate invariants
 ```
 
@@ -705,12 +703,9 @@ Key documents:
 | file | contents |
 |---|---|
 | [`PREREGISTRATION.md`](PREREGISTRATION.md) | analysis decisions fixed before test scoring |
-| the verification record | every verified number, with reproduction snippets |
 | [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) | Phase 1 results **and the correction to them** |
 | [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) | Phase 2 results — Q5, Q6 and the reopened Q2 |
-| the implementation plan | what remains, and the plan correction Phase 2 forced |
 | [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) | manuscript draft (v0.1; discussion and bibliography still open) |
-| the execution log | execution log, environment notes, known hazards |
 
 ## Limitations
 
@@ -736,7 +731,7 @@ Stated plainly, because several of them bound the conclusions:
    `wgan_gp_provider.generate()` accepts a `class_label` it never uses. Only the ictal phase is
    generated, which is the convention in this literature but forecloses the label-consistency half
    of the published admission rule.
-8. **Pre-registration deviations** are declared in the verification record §5.
+8. **Pre-registration deviations** are declared in [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) §7.
 9. **Dose coverage is bimodal, and the fix is budget-limited.** Realized injection
    `r = n_admitted / n_train_pos` takes only two values in this grid: `gated q0.90` at
    **r ≈ 0.032** and `ungated` / `gated q0.50` at **r = 1.00**. Nothing samples
@@ -839,7 +834,7 @@ partly been re-run.
    its own `analysis_*_r*` outputs instead of overwriting the other's.
 
 Full analysis, including which Phase 1 claims survive and which do not, is in
-the execution log under *SESSION 2026-08-29 — code audit*.
+[`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md).
 
 ## Citation
 
