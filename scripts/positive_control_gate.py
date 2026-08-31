@@ -41,11 +41,12 @@ from synthetic.trust_gate import TrustGateConfig
 from experiments.training import (
     run_cell, CellSpec, TrainConfig, UNGATED_SYNTHETIC, GATED_SYNTHETIC)
 
-STORE = "data/processed_chbmit_real/eeg.zarr"
-PROC = "data/processed_chbmit_real/processed_index.csv"
+# Defaults for a local checkout. The processed store now lives in GCS
+# (gs://chbmit-bench-2486a474/processed_chbmit_real/) and is reached through Vertex's /gcs mount,
+# so --data-root / --device exist to point this script at it without editing the source.
+DATA_ROOT = Path("data/processed_chbmit_real")
 RES = Path("results_chbmit_synthetic/real_validation")
 OUT = RES / "analysis_tierB"
-DEVICE = "cuda"
 BASE_FRAC = 0.5   # base detector trains on 50% of events; other 50% is the oracle pool
 
 
@@ -71,15 +72,30 @@ def main():
     ap.add_argument("--qs", nargs="*", type=float, default=[0.90, 0.50])
     ap.add_argument("--epochs", type=int, default=80)
     ap.add_argument("--with-noise-control", action="store_true")  # add Gaussian-noise negative control
+    ap.add_argument("--data-root", default=str(DATA_ROOT),
+                    help="directory holding eeg.zarr and processed_index.csv "
+                         "(e.g. /gcs/chbmit-bench-2486a474/processed_chbmit_real)")
+    ap.add_argument("--device", default="cuda", choices=["cuda", "cpu"])
+    # The oracle pool IS real held-out ictal, so calibrating the admission threshold on real
+    # TRAINING ictal is the right reference for this experiment specifically -- the whole point
+    # is "does the teacher rate unseen real seizures as highly as the ones it memorised". That is
+    # the opposite of the main grids, where the same reference disabled the gate
+    # (DECISION_GATE_2.md Q6), so it is set explicitly here rather than inherited from the
+    # TrustGateConfig default, which is now "pool".
+    ap.add_argument("--gate-reference", default="real_ictal", choices=["real_ictal", "pool"],
+                    help="admission reference (default: real_ictal -- correct HERE because the "
+                         "candidate pool is itself real ictal)")
     args = ap.parse_args()
 
+    data_root = Path(args.data_root)
+    store = str(data_root / "eeg.zarr")
     t0 = time.time()
-    index_df = pd.read_csv(PROC)
+    index_df = pd.read_csv(data_root / "processed_index.csv")
     win = pd.read_csv(RES / "windows/windows.csv")
     ev = pd.read_csv(RES / "windows/events.csv")
     sp = json.load(open(RES / "splits/splits_seed42.json"))
-    fs = int(zarr.open_group(STORE, mode="r").attrs["sampling_rate"])
-    cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=0)
+    fs = int(zarr.open_group(store, mode="r").attrs["sampling_rate"])
+    cfg = TrainConfig(epochs=args.epochs, device=args.device, num_workers=0)
     out_csv = OUT / "positive_control_gate.csv"
 
     rows = []
@@ -90,7 +106,7 @@ def main():
         clear_window_cache()
         for grp in ("val_groups", "test_groups"):
             ids = set(index_df[index_df["group"].isin(f[grp])]["file_id"])
-            prefetch_windows(win[win["file_id"].isin(ids)], STORE, workers=16, dtype="float16")
+            prefetch_windows(win[win["file_id"].isin(ids)], store, workers=16, dtype="float16")
         train_ids = set(index_df[index_df["group"].isin(split.train_groups)]["file_id"])
         train_windows = win[win["file_id"].isin(train_ids) & (~win["excluded"])]
         train_events = ev[ev["group"].isin(split.train_groups)]
@@ -106,8 +122,8 @@ def main():
             pool_events = all_events - base_events
             pool_win = train_windows[(train_windows["label"] == 1)
                                      & (train_windows["seizure_event_id"].isin(pool_events))]
-            prefetch_windows(pool_win, STORE, workers=16, dtype="float16")
-            real_pool, _ = materialize_windows(pool_win, STORE)
+            prefetch_windows(pool_win, store, workers=16, dtype="float16")
+            real_pool, _ = materialize_windows(pool_win, store)
             print(f"[{time.time()-t0:5.0f}s] f{fold} s{seed}: base={len(base_events)}ev "
                   f"pool={len(pool_events)}ev -> {len(real_pool)} real held-out ictal windows",
                   flush=True)
@@ -131,7 +147,7 @@ def main():
             base_train = negative_sample(base_scarce, ratio=cfg.background_to_seizure_ratio,
                                          exclude_seconds=cfg.exclude_seconds_around_seizure,
                                          seed=seed)
-            prefetch_windows(base_train, STORE, workers=16, dtype="float16")
+            prefetch_windows(base_train, store, workers=16, dtype="float16")
             print(f"[{time.time()-t0:5.0f}s] f{fold} s{seed}: base train prefetched "
                   f"({len(base_train)} windows, {int((base_train['label'] == 1).sum())} ictal)",
                   flush=True)
@@ -142,26 +158,26 @@ def main():
                                     detector=det, condition=cond, **kw)
                 base = {"fold": fold, "seed": seed, "detector": det}
 
-                teacher = run_cell(_spec("real_only"), index_df, win, ev, STORE, split,
+                teacher = run_cell(_spec("real_only"), index_df, win, ev, store, split,
                                    cfg=cfg, return_model=True)
                 tmodel = teacher.pop("model", None)
                 rows.append({**base, "pool": "real_base", "condition": "real_only", "q": None, **_evt(teacher)})
 
                 r = run_cell(_spec(UNGATED_SYNTHETIC, generator="oracle_real", synthetic_ratio=1.0),
-                             index_df, win, ev, STORE, split, cfg=cfg, synthetic_provider=oracle)
+                             index_df, win, ev, store, split, cfg=cfg, synthetic_provider=oracle)
                 rows.append({**base, "pool": "real_oracle", "condition": "ungated", "q": None, **_evt(r)})
                 for q in args.qs:
                     r = run_cell(_spec(GATED_SYNTHETIC, generator="oracle_real", synthetic_ratio=1.0),
-                                 index_df, win, ev, STORE, split, cfg=cfg, synthetic_provider=oracle,
+                                 index_df, win, ev, store, split, cfg=cfg, synthetic_provider=oracle,
                                  teacher_model=tmodel, teacher_result=copy.deepcopy(teacher),
-                                 gate_cfg=TrustGateConfig(q=q))
+                                 gate_cfg=TrustGateConfig(q=q, reference=args.gate_reference))
                     rows.append({**base, "pool": "real_oracle", "condition": "gated", "q": q, **_evt(r)})
 
                 if args.with_noise_control:
                     r = run_cell(_spec(GATED_SYNTHETIC, generator="noise", synthetic_ratio=1.0),
-                                 index_df, win, ev, STORE, split, cfg=cfg, synthetic_provider=noise,
+                                 index_df, win, ev, store, split, cfg=cfg, synthetic_provider=noise,
                                  teacher_model=tmodel, teacher_result=copy.deepcopy(teacher),
-                                 gate_cfg=TrustGateConfig(q=0.50))
+                                 gate_cfg=TrustGateConfig(q=0.50, reference=args.gate_reference))
                     rows.append({**base, "pool": "noise", "condition": "gated", "q": 0.50, **_evt(r)})
 
                 pd.DataFrame(rows).to_csv(out_csv, index=False)

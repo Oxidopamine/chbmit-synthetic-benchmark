@@ -347,14 +347,28 @@ baseline (cells better, of 9):
 | LCT | +0.006 (1/9) | +0.019 (4/9) | +0.020 (5/9) |
 | TCN | +0.008 (1/9) | **−0.063 (2/9)** | +0.076 (6/9) |
 
-The largest single loss is **TCN against `class_weighted`**, where a one-line loss reweighting
-reaches 0.364 event-F1 at 9.8 FP/24 h versus `real_only`'s 0.293 at 16.9 — better on both axes.
-For a rare-event problem this is the expected place for reweighting to win, and it does.
+The largest single apparent loss is **TCN against `class_weighted`**, where a focal loss with a
+positive-class weight — two lines, no generator — reaches 0.364 event-F1 at 9.8 FP/24 h versus
+`real_only`'s 0.293 at 16.9, better on both axes. For a rare-event problem this is the expected
+place for reweighting to win.
 
-**Do not call this "the single genuine loss."** Cross-family comparisons are not
-initialisation-controlled (Known issue #1), the run-to-run floor at production settings was never
-measured, and −0.063 is within plausible reach of that unmeasured floor. What is defensible is the
-direction and the mechanism, not the magnitude.
+**−0.063 is not a measurement — withdrawn 2026-08-31.** The floor it was "within plausible reach
+of" has since been measured. Phase 2 re-ran all three simple baselines for TCN under identical
+settings with the initialisation fix in place (Known issue #1), and they moved by
+σ = 0.099–0.171 event-F1:
+
+| baseline (TCN, 9 cells) | Phase 1 | Phase 2 re-run | σ of paired difference |
+|---|---|---|---|
+| `real_only` | 0.293 | 0.283 | 0.099 |
+| `class_weighted` | **0.364** | **0.271** | **0.159** |
+| `classical_aug` | 0.225 | 0.255 | 0.171 |
+| `ungated` (draws a pool, so was seeded incidentally) | 0.268 | 0.268 | 0.000 — identical 9/9 |
+
+Against the re-run baselines the same gated arm reads **+0.030 (3/9)** instead of −0.063 (2/9),
+and −0.059 instead of −0.128 against the best-of-3 reference. Nothing is significant either way,
+so **Q1's answer — parity — is unchanged**; what changes is that the magnitude cannot be quoted.
+Two draws of the identical baseline differ by 0.093, which brackets the 0.063. EEGNet and LCT
+baselines have not been re-run, so their rows above carry the same caveat.
 
 ### Q2 — Does admission quality matter?
 
@@ -521,7 +535,8 @@ That is a **selected maximum**, and our first analysis compounded the problem by
 | TCN | 0.293 | 0.364 | 0.225 | **0.428** |
 
 For EEGNet and LCT the best-of-3 reference exceeds **every individual baseline by 0.07–0.10** —
-no baseline is that good; the gap is the maximum of three noisy estimates. Against that reference
+no baseline is that good; the gap is the maximum of three noisy estimates. Q1's re-run above puts a
+number on how noisy: σ = 0.099–0.171 per baseline, which is most of that gap. Against that reference
 the same gated arm reads −0.080 to −0.128 with 0 of 9 cells better, which is how we first
 reported it. Against any single pre-specified baseline it is at parity.
 
@@ -765,28 +780,39 @@ statement is that the constraint is financial.
 
 ## Known issues
 
-Four defects found by audit after each phase was scored. #3 and #4 were fixed in Phase 2;
-#1 and #2 are disclosed rather than fixed, because fixing them means re-running Phase 1.
+Five defects found by audit after each phase was scored. **All five are now fixed in code**; #1
+and #2 still describe the Phase 1 *results*, which were produced before their fixes and have only
+partly been re-run.
 
-1. **Detector weight initialisation is unseeded, and the condition perturbs the RNG stream.**
-   `build_model` runs before any `torch.manual_seed` (`experiments/training.py:337`; the only
-   seeding is inside `train_model`, after construction), and arms that draw a synthetic pool first
-   reset and advance the stream by an amount that depends on the arm. Conditions in a block
-   therefore start from different initialisations. This is **noise, not bias** — arm means stay
-   unbiased — but it breaks the *pairing*, so paired p-values here are anti-conservative. The
-   gated-family comparisons (`gated q0.50`/`q0.90`/`random_gated`) draw identical pools and so are
-   genuinely init-controlled; deltas against `real_only` and the simple baselines are not. The
-   run-to-run floor at production settings was never measured, so small cross-family deltas — in
-   particular TCN's −0.063 against `class_weighted` — should not be read as established. The
-   tail-control result (Q4) is unaffected in kind: it compares a model's own validation decision
-   against its own test FP. This also qualifies the claim above that within-run comparison is
-   sufficient — the confound lives inside a single run.
-2. **The admission threshold is calibrated on the teacher's own training positives**
-   (`experiments/training.py:326`), which the teacher has memorised, so the reference distribution
-   is pinned near 1.0. This is the mechanism behind the ill-conditioning described in
+1. **Detector weight initialisation was unseeded in Phase 1** — **fixed in code**
+   (`experiments/training.py:343`, commit `c32705e`, in force from Phase 2 onward). `build_model`
+   used to run before any `torch.manual_seed`, the only seeding being inside `train_model`, after
+   construction.
+
+   The 2026-08-31 audit narrowed the mechanism. `WGANGPProvider.generate`
+   (`synthetic/wgan_gp_provider.py:162`) calls `torch.manual_seed(seed)` and then samples **on the
+   GPU**, which leaves the *CPU* generator — the one `build_model` draws from — sitting at
+   exactly `manual_seed(spec.seed)`. So arms that draw a synthetic pool
+   (`ungated`/`gated`/`random_gated`) were **already correctly seeded by accident**, and the fix is
+   a bit-exact no-op for them: `ungated` is identical in 9/9 cells between the Phase 1 and Phase 2
+   grids. Only the three pool-free arms (`real_only`, `class_weighted`, `classical_aug`) were
+   exposed, and those Phase 1 rows are **not reproducible**.
+
+   Consequences, now measured rather than asserted: within-family comparisons were always
+   init-controlled; cross-family comparisons in Phase 1 were not, and the run-to-run floor for the
+   affected arms is **σ = 0.099–0.171 event-F1** (see [Q1](#q1--does-synthetic-augmentation-beat-simple-baselines)).
+   TCN's −0.063 against `class_weighted` is withdrawn on that basis. The tail-control result (Q4)
+   is unaffected in kind — it compares a model's own validation decision against its own test FP,
+   and a noisier reference makes the test conservative, not liberal. Phase 2 re-ran the three
+   baselines for TCN; **EEGNet and LCT (54 cells) have not been re-run.**
+2. **The admission threshold was calibrated on the teacher's own training positives**
+   (`experiments/training.py:326`–`334`), which the teacher has memorised, so the reference
+   distribution is pinned near 1.0. This is the mechanism behind the ill-conditioning described in
    [The trust gate](#the-trust-gate), and it means the gate as run cannot distinguish a
-   low-fidelity generator from a degenerate reference. `TrustGateConfig.reference = "pool"`
-   already implements the published alternative.
+   low-fidelity generator from a degenerate reference. **Fixed as a default 2026-08-31:**
+   `TrustGateConfig.reference` and `run_multiseed_downstream.py --gate-reference` now both default
+   to `"pool"`, the published rank cut. Pass `--gate-reference real_ictal` to reproduce Phases 1–2.
+   A regression test (`tests/test_trust_gate.py`) pins both behaviours.
 3. **RESOLVED IN PHASE 2 — kept for the record.** The matched-volume admission control was scored
    and dosed in ways that could not detect an effect. It was paired on the *post-revert* `event_f1`, so the 18 of 27 cells where both arms
    failed closed to the same `real_only` model are identical by construction; it was tested only
@@ -802,7 +828,15 @@ Four defects found by audit after each phase was scored. #3 and #4 were fixed in
    gate admits 6–23 windows whatever is requested. Every Phase 1 result, and the Phase 2 ratio
    ladder, ran under this reference. Only the final `_p3` grid uses the published pool rank cut.
    `TrustGateConfig.reference` existed from the start but the driver never set it — the option was
-   present and unreachable until `--gate-reference` was added.
+   present and unreachable until `--gate-reference` was added, and it remained the *default* until
+   2026-08-31, so until then a fresh clone reproduced the disabled mechanism. See #2.
+
+5. **`analyze_multiseed.py --ratio` returned an all-NaN report** — **fixed 2026-08-31.** The rung
+   filter was applied to every condition, but the three simple baselines carry `ratio = NaN`, so
+   selecting a rung dropped them, emptied the registered reference and NaN'd the whole report. Both
+   commands printed in `DECISION_GATE_2.md` were affected. The numbers in that report are correct
+   (independently re-derived) but did not come from the command as printed. Each rung now writes to
+   its own `analysis_*_r*` outputs instead of overwriting the other's.
 
 Full analysis, including which Phase 1 claims survive and which do not, is in
 the execution log under *SESSION 2026-08-29 — code audit*.

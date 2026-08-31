@@ -231,11 +231,18 @@ def cell(blk, cond, q=None):
     row per (condition, q, ratio), so selecting on (condition, q) alone would silently analyse
     whichever rung happened to be written first -- the same silent-wrong-row failure mode that
     CORRECTION 1 and CORRECTION 2 were both instances of. Pass --ratio to pick a rung.
+
+    The ratio filter applies ONLY to conditions that carry a ratio. The simple baselines
+    (real_only, class_weighted, classical_aug) are written once per block with ratio = NaN, so
+    filtering them on a rung drops them, empties the registered reference, and turns the whole
+    report into NaN -- which is exactly what `--ratio 0.10` did until 2026-08-31. That is the
+    same silent-wrong-row failure the guard above was written to prevent, running in the other
+    direction, so the exemption is checked per condition rather than hardcoded by name.
     """
     m = blk[blk["condition"] == cond]
     m = m[m["q"].isna()] if q is None else m[np.isclose(m["q"].fillna(-1.0), q)]
-    if SELECTED_RATIO is not None and "ratio" in m.columns:
-        m = m[np.isclose(m["ratio"].fillna(-1.0), SELECTED_RATIO)]
+    if SELECTED_RATIO is not None and "ratio" in m.columns and m["ratio"].notna().any():
+        m = m[np.isclose(m["ratio"], SELECTED_RATIO)]
     if len(m) > 1:
         seen = sorted(m["ratio"].dropna().unique()) if "ratio" in m.columns else []
         raise ValueError(
@@ -643,6 +650,11 @@ def main():
     outdir.mkdir(parents=True, exist_ok=True)
     tag = (csv.stem[len("downstream_gated"):] if csv.stem.startswith("downstream_gated")
            else "_" + csv.stem)
+    # A ratio-ladder CSV yields a DIFFERENT report per rung, so the rung goes in the filename.
+    # Without it, `--ratio 0.10` and `--ratio 0.30` silently overwrite each other's outputs and
+    # whichever ran last is the one on disk -- with nothing in the file saying which.
+    if SELECTED_RATIO is not None:
+        tag += f"_r{SELECTED_RATIO:g}".replace(".", "")
     stem = f"analysis{tag}"
     written = []
     if summary:

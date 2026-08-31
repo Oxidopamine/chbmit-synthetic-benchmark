@@ -1,10 +1,12 @@
 """Generate the three figures for reports/PREPRINT_DRAFT.md from committed result CSVs.
 
-NOT RUN ON THE AUTHORING MACHINE. Windows Smart App Control blocks matplotlib's `kiwisolver`
-native extension there (see README "Known issues"), so this script is written against the data but
-has never been executed. Run it where matplotlib imports -- WSL2, Linux, or the Vertex CPU image:
+Run it with:
 
     python3 scripts/make_preprint_figures.py --out reports/figures
+
+(Historical note: this script carried a "never executed" warning because Windows Smart App Control
+blocked matplotlib's `kiwisolver` extension on the authoring machine. That is no longer the case --
+verified 2026-08-31, the figures render locally.)
 
 Figures, in the order they appear in the manuscript:
 
@@ -45,18 +47,39 @@ def _style():
     })
 
 
+def _n_pos_by_fold(p2: pd.DataFrame) -> dict:
+    """Real ictal training windows per fold. Read, never hardcoded -- it differs by fold.
+
+    Preferred source is ``w2_dose_prediction.csv``, whose ``n_real`` column is the exact count
+    the generator was fit on (2508 / 2406 / 2643). Falls back to reconstructing it from the
+    gated arm's own bookkeeping -- n_admitted / admission_rate is the candidate pool size, which
+    the driver builds as oversample * ratio * n_pos -- which lands within 2 windows but inherits
+    the rounding in the stored admission_rate.
+    """
+    w2 = A / "w2_dose_prediction.csv"
+    if w2.exists():
+        d = pd.read_csv(w2)
+        return d.groupby("fold").n_real.median().to_dict()
+    g = p2[(p2.condition == "gated") & (p2.gate_admission_rate > 0)].copy()
+    g["n_pos"] = g.gate_n_admitted / g.gate_admission_rate / (6 * g.ratio)
+    return g.groupby("fold").n_pos.median().round().to_dict()
+
+
 def fig1_realized_vs_requested(out: Path):
     """Requested vs admitted count, both references. The paper's central claim, in one panel."""
     import matplotlib.pyplot as plt
     p2 = pd.read_csv(A / "downstream_gated_p2.csv")     # real_ictal reference
     p3 = pd.read_csv(A / "downstream_gated_p3.csv")     # pool reference
-    n_pos = 2508.0                                       # median real ictal per cell
+    # Real ictal count per FOLD, not a single pooled constant: it is 2508 / 2406 / 2643 for folds
+    # 0 / 1 / 2, so using fold 0's value everywhere put a ~5% error in the requested-count axis.
+    # Recovered from the ungated arm, which receives exactly ratio * n_pos windows.
+    n_pos = _n_pos_by_fold(p2)
 
     g2 = p2[(p2.condition == "gated") & p2.gate_n_admitted.notna()]
-    req2 = g2.ratio * n_pos
+    req2 = g2.ratio * g2.fold.map(n_pos)
     g3 = p3[(p3.condition == "gated") & p3.gate_n_admitted.notna()]
     # under pool, requested = min(oversample*(1-q),1)*n_synth with n_synth = ratio*n_pos
-    req3 = np.minimum(6 * (1 - g3["q"]), 1.0) * g3.ratio * n_pos
+    req3 = np.minimum(6 * (1 - g3["q"]), 1.0) * g3.ratio * g3.fold.map(n_pos)
 
     fig, ax = plt.subplots()
     lim = [5, 3000]
@@ -82,6 +105,8 @@ def fig2_dose_response(out: Path):
     for r in (0.10, 0.30):
         m = p2[(p2.condition == "ungated") & np.isclose(p2.ratio, r)]
         pts.append((r, m.set_index(k).sort_index().event_f1))
+    # r = 1.0 comes from the _p3 grid, which shares _p2's code version and is bit-identical to
+    # the Phase 1 ungated arm in all 9 cells -- so the ladder is a single within-code comparison.
     pts.append((1.0, p3[p3.condition == "ungated"].set_index(k).sort_index().event_f1))
 
     fig, ax = plt.subplots()

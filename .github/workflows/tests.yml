@@ -1,0 +1,49 @@
+name: tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      # torch CPU wheels only -- CI never trains on GPU, and the CUDA wheel is ~2.5 GB.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install "numpy>=1.24,<2.0" scipy "pandas>=2.0" pyyaml tqdm scikit-learn \
+                      "zarr>=2.16,<3.0" numcodecs matplotlib timescoring pyedflib pytest
+
+      - name: Record the environment
+        run: |
+          python -c "import torch, numpy, scipy, sklearn; print('torch', torch.__version__); \
+                     print('numpy', numpy.__version__); print('scipy', scipy.__version__); \
+                     print('sklearn', sklearn.__version__)"
+
+      - name: pytest
+        run: pytest -q
+
+      # The analysis path is what readers reproduce, so exercise it on committed CSVs. This is the
+      # regression guard for the --ratio bug fixed 2026-08-31, which silently returned all-NaN.
+      - name: Analysis reproduces on committed results
+        run: |
+          python scripts/analyze_multiseed.py \
+            --csv results_chbmit_synthetic/real_validation/analysis_tierB/downstream_gated_p2.csv \
+            --conds-expected 9 --ratio 0.10 | tee /tmp/p2.txt
+          grep -q "real_only event-F1 0.283" /tmp/p2.txt
+          grep -q "registered-reference event-F1 0.359" /tmp/p2.txt
+          ! grep -q "d +nan" /tmp/p2.txt
+
+      - name: Figures render
+        run: python scripts/make_preprint_figures.py --out /tmp/figures

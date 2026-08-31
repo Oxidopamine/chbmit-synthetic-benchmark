@@ -168,8 +168,12 @@ def main():
     # ratio ladder can move it (reports/DECISION_GATE_1.md CORRECTION 2; Phase 2 _p2 results).
     # With "pool" -- the rank cut TGA actually publishes -- admitted = min(oversample*(1-q), 1) *
     # n_synth exactly, so q becomes direct dose control: q = 1 - r/oversample hits any target r.
-    ap.add_argument("--gate-reference", default="real_ictal", choices=["real_ictal", "pool"],
-                    help="admission reference distribution (default: real_ictal, as Phase 1 ran)")
+    # DEFAULT FLIPPED TO "pool" 2026-08-31. It used to default to "real_ictal", so a clone of
+    # this repository reproduced the disabled mechanism -- the exact silent failure the project
+    # is about. Pass --gate-reference real_ictal to reproduce Phases 1-2.
+    ap.add_argument("--gate-reference", default="pool", choices=["pool", "real_ictal"],
+                    help="admission reference distribution (default: pool, the published TGA "
+                         "rank cut; real_ictal reproduces Phases 1-2 and cannot inject a dose)")
     ap.add_argument("--epochs", type=int, default=80)          # detector training epochs
     ap.add_argument("--gen-epochs", type=int, default=300)     # WGAN epochs (matches Tier B)
     # DataLoader workers. KEEP THIS AT 0 FOR ANY RUN THAT WILL BE COMPARED WITH ANOTHER.

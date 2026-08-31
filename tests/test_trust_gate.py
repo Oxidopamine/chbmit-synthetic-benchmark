@@ -64,6 +64,61 @@ def test_run_admission_caps_at_target():
     assert 0.0 <= adm.admission_rate <= 1.0
 
 
+# --- realized vs requested dose ----------------------------------------
+# These encode DECISION_GATE_2.md Q6. The gate ran for an entire phase admitting 0.4% of what it
+# was asked for, and nothing in the test suite could see it: the cap test above bounds admission
+# from ABOVE only. The paper's transferable claim is that comparing realized against requested is
+# the cheap diagnostic that catches this, so the diagnostic lives here as a test.
+
+@pytest.mark.parametrize("q,target", [(0.95, 100), (0.9917, 60), (0.50, 40), (0.75, 30)])
+def test_pool_reference_hits_the_requested_dose(q, target):
+    """reference="pool" is a rank cut, so admitted == min(oversample*(1-q), 1) * target."""
+    model = build_model("eegnet", n_channels=4, n_samples=256)
+    cfg = TrustGateConfig(q=q, reference="pool")
+    pool = np.random.default_rng(11).standard_normal(
+        (cfg.oversample * target, 4, 256)).astype("float32")
+    adm = run_admission(model, pool, None, cfg, target_count=target)
+    predicted = int(min(cfg.oversample * (1.0 - q), 1.0) * target)
+    # +/-1 for the quantile's interpolation on a finite pool.
+    assert abs(adm.n_admitted - predicted) <= 1, (
+        f"q={q} target={target}: admitted {adm.n_admitted}, closed form predicts {predicted}")
+
+
+def test_real_ictal_reference_collapses_when_the_teacher_saturates():
+    """The Phase 1/2 defect, pinned: a teacher that scores real ictal near 1.0 admits ~nothing.
+
+    Regression guard -- if this ever starts admitting a real dose, the admission path changed and
+    DECISION_GATE_2.md Q6 needs re-deriving.
+    """
+    class SaturatedTeacher:
+        """Returns sample 0 of channel 0 as the logit, so the arrays below set the scores."""
+        def eval(self):
+            return self
+
+        def __call__(self, xb):
+            return xb[:, 0, 0]
+
+    real = np.full((200, 4, 256), 0.0, dtype="float32")
+    real[:, 0, 0] = 8.0                      # sigmoid -> ~1.0
+    pool = np.full((600, 4, 256), 0.0, dtype="float32")
+    pool[:, 0, 0] = np.random.default_rng(5).normal(-2.0, 1.0, 600)   # sigmoid -> mostly << 1
+    cfg = TrustGateConfig(q=0.90, reference="real_ictal")
+    adm = run_admission(SaturatedTeacher(), pool, real, cfg, target_count=100)
+    assert adm.n_admitted < 0.05 * 100, (
+        f"real_ictal reference admitted {adm.n_admitted} of a requested 100; the Q6 collapse "
+        "is no longer reproduced")
+
+    # Same teacher, same pool, published reference -> the requested dose arrives.
+    adm_pool = run_admission(SaturatedTeacher(), pool, real,
+                             TrustGateConfig(q=0.90, reference="pool"), target_count=100)
+    assert adm_pool.n_admitted >= 55, adm_pool.n_admitted
+
+
+def test_default_reference_is_the_published_rank_cut():
+    """Guards the 2026-08-31 default flip: a fresh clone must not run the disabled gate."""
+    assert TrustGateConfig().reference == "pool"
+
+
 # --- fail-closed selection ---------------------------------------------
 def test_fail_closed_admits_on_improvement():
     cfg = TrustGateConfig(admit_margin_event_f1=0.0, fp24h_safety_slack=0.25)

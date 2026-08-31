@@ -21,6 +21,9 @@ set -euo pipefail
 BUCKET="${BUCKET:-chbmit-bench-2486a474}"
 REGION="${REGION:-us-central1}"
 SUFFIX="${1:-_v2}"
+# NOT REPRODUCIBLE AS WRITTEN: ":latest" floats, so the torch build behind a grid is not
+# recoverable after the fact -- see requirements.txt. Pin by digest for any grid whose numbers
+# will be published:  IMAGE="...pytorch-gpu.2-4.py310@sha256:<digest>"
 IMAGE="us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-4.py310:latest"
 MACHINE="${MACHINE:-a2-highgpu-1g}"
 ACCEL="${ACCEL:-NVIDIA_TESLA_A100}"

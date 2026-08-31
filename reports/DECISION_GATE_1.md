@@ -412,3 +412,38 @@ The claim to retire everywhere it appears: *`random_gated` matches `gated` to wi
 therefore admission adds nothing.* It appears in the Q2 section above, in the "defensible
 claims" list, in CORRECTION 1's "What is unaffected", in `README.md`, in `the execution log`, and as a
 decision branch in `the implementation plan`; all have been marked.
+
+
+---
+
+# CORRECTION 3 (appended 2026-08-31, from the full project audit)
+
+**"the run-to-run floor at 80 epochs was never measured" is no longer true, and the amendment
+above is now too weak.** The floor has been measured, and it is larger than the effect this report
+declines to claim.
+
+Phase 2's `_p2` grid re-ran all three simple baselines for TCN at identical settings with the
+initialisation fix in place (`c32705e`). The only behavioural change between `_v2` and `_p2` is
+that one `torch.manual_seed` line, so the paired difference between the two grids **is** the
+run-to-run floor for the affected arms:
+
+| baseline (TCN, 9 cells) | `_v2` (this report) | `_p2` re-run | σ of paired difference |
+|---|---|---|---|
+| `real_only` | 0.293 | 0.283 | 0.099 |
+| `class_weighted` | **0.364** | **0.271** | **0.159** |
+| `classical_aug` | 0.225 | 0.255 | 0.171 |
+| `ungated` | 0.268 | 0.268 | 0.000 — bit-identical in 9/9 |
+
+**−0.063 is therefore withdrawn as a magnitude.** Against the re-run baselines the same gated arm
+scores **+0.030 (3/9)**, and the best-of-3 gap moves from −0.128 (0/9) to −0.059 (2/9). Neither
+reading is significant on any correction, so **this report's conclusion — parity — is unchanged**;
+what changes is that the sentence "`class_weighted` really does reach 0.364" describes one draw,
+not a measurement.
+
+The `ungated` row also explains why only some arms were affected: `WGANGPProvider.generate` seeds
+torch and then samples on the GPU, leaving the CPU stream that `build_model` draws from at exactly
+`manual_seed(seed)`, so every pool-drawing arm was already seeded by accident. Within-family
+contrasts in this grid were init-controlled all along; only comparisons against the three pool-free
+baselines were not.
+
+Full working: `the 2026-08-31 audit` §2.

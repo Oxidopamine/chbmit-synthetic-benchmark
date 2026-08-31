@@ -2,10 +2,20 @@
 
 **Abdullah R. Alotaibi**
 
-**Status:** DRAFT v0.3, 2026-08-31. All sections are drafted. Remaining **[TODO]** markers are
-bibliographic details requiring source verification, plus figure rendering (see §8). Every number
-in Results is reproducible from this repository; provenance for each is given in §8.
+**Status:** DRAFT v0.4, 2026-08-31. All sections are drafted and all three figures are rendered
+(`reports/figures/`). Remaining **[TODO]** markers are bibliographic details requiring source
+verification. Every number in Results is reproducible from this repository; provenance for each is
+given in §8.
 
+> **v0.4 changes, from a full project audit.** (1) §4.1's −0.063 is withdrawn as a
+> measurement. Re-running the three simple baselines under the Phase 2 initialisation fix moves
+> `class_weighted` by 0.093 and flips the comparison to +0.030; the run-to-run floor
+> (σ = 0.099–0.171) is now reported instead, and added to §4.6 as a fourth pitfall. The
+> abstract is rewritten accordingly. (2) Deviations 3 and 6 were overstated: the registered 5-fold
+> and 3-scarcity design *was* run at Tier B, the negative result holds at every rung, and §7 now
+> reports it. (3) The +0.163 in deviation 1 is re-attributed to the grid it came from. (4) The
+> reproduction command for §4.2–§4.3 in §8 was broken and is fixed. (5) Figures rendered.
+>
 > **v0.2 changes, from an internal review.** (1) The claim that admission quality yields *equal
 > deployments* was an equivalence conclusion drawn from a non-significant difference — the exact
 > inference this paper criticises in §4.6. It is restated in §4.4 with a TOST and a confidence
@@ -23,10 +33,14 @@ fail-closed "trust gating" has been proposed to make it safe under subject shift
 trust-gated augmentation on CHB-MIT under patient-independent splits, scored at the event level
 with SzCORE conventions and pre-registered harm.
 
-Augmentation is at parity with simple baselines and does not beat a one-line class-weighted loss,
-trailing it by 0.063 event-F1 on the highest-capacity detector — a gap our design is not powered to
-establish. This is not a dose artefact: across the source method's operating band
-(r ∈ [0.05, 0.30]) the dose–performance curve is monotone with no interior optimum.
+Augmentation is at parity with simple baselines, beating none of them on any detector by a margin
+this design can establish. The comparison is bounded from below rather than from above: two
+independent runs of the *identical* baseline specification, differing only in weight-initialisation
+seeding, differ by 0.099–0.171 event-F1 (σ over 9 cells), so a run-to-run floor larger than any
+effect reported in this literature sits under every cross-family number here — ours included. This
+parity is not a dose artefact: across the source method's operating band (r ∈ [0.05, 0.30]) the
+dose–performance curve is monotone with no interior optimum, and it holds at every scarcity level
+of the registered grid.
 
 More consequentially, the gate as we first built it *cannot inject a dose at all*. Calibrating
 admission on real ictal windows — which the teacher has memorised — admits 6 windows against a
@@ -41,9 +55,10 @@ fail-closed stage — which we decline to call equivalence, the study bounding i
 Tail control replicates, surviving multiplicity correction, a circularity objection and dose
 stratification, and holding even for *randomly selected* synthetic.
 
-We quantify four evaluation pitfalls that changed our own conclusions, including that the
-Nadeau–Bengio variance floor is set by fold count: **additional seeds cannot buy fold-corrected
-power**, and at three folds no number of replicates resolves effects below ≈0.13 event-F1.
+We quantify five evaluation pitfalls that changed our own conclusions, including that the
+Nadeau–Bengio variance floor is set by fold count — **additional seeds cannot buy fold-corrected
+power**, and at three folds no number of replicates resolves effects below ≈0.13 event-F1 — and
+that an unmeasured weight-initialisation floor can exceed the effect being reported.
 
 **Keywords:** seizure detection, synthetic data, generative augmentation, patient-independent
 validation, negative results, evaluation methodology
@@ -79,7 +94,7 @@ would not? And what, mechanically, does the gate control?
 Our contribution is not a better detector. It is (i) a leakage-safe, pre-registered,
 event-level replication that answers those questions, (ii) the finding that a plausible-looking
 divergence in how the admission threshold is calibrated silently disables the entire mechanism,
-and (iii) a set of quantified evaluation pitfalls, two of which invalidated our own earlier
+and (iii) a set of quantified evaluation pitfalls, three of which invalidated our own earlier
 conclusions before we caught them.
 
 ## 2. Relationship to prior work
@@ -123,7 +138,10 @@ operating-regime comparison and no tail-risk statement. Its own +2.75 F1 headlin
 sample-level number with no class-weighting comparison. Our §4.1 result bears directly on how such
 a number should be read: for TCN the *same* gated arm scores +0.008 against `real_only`, −0.063
 against `class_weighted` and +0.076 against `classical_aug` — a **0.139 span** attributable purely
-to which baseline is chosen, larger than any effect under discussion in this literature.
+to which baseline is chosen, larger than any effect under discussion in this literature. §4.1 adds
+a second span of the same order from re-running one baseline under a different initialisation seed.
+An augmentation delta reported against a single unnamed baseline, with no floor measured, is
+consistent with almost any underlying truth.
 
 Because GP-EEG established CHB-MIT and Siena as the expected pairing, evaluation on Siena is a
 comparability requirement rather than an extension. We have not met it (§6).
@@ -231,11 +249,39 @@ Against single pre-specified baselines (gated q0.90, Δevent-F1, cells better of
 | LCT | +0.006 (1/9) | +0.019 (4/9) | +0.020 (5/9) |
 | TCN | +0.008 (1/9) | **−0.063 (2/9)** | +0.076 (6/9) |
 
-Synthetic augmentation is at **parity** with the simple baselines. The largest single loss is TCN
-against `class_weighted`, where a one-line loss reweighting reaches 0.364 event-F1 at 9.8 FP/24 h
-versus real-only's 0.293 at 16.9 — better on both axes. We do not claim the −0.063 as established:
-cross-family comparisons in this grid are not initialisation-controlled (§6) and the run-to-run
-floor was never measured.
+Synthetic augmentation is at **parity** with the simple baselines. The largest single apparent loss
+is TCN against `class_weighted`, where a focal loss with a positive-class weight — two lines,
+requiring no generator — reaches 0.364 event-F1 at 9.8 FP/24 h versus real-only's 0.293 at 16.9,
+better on both axes.
+
+**We now know that −0.063 is not a measurement.** The Phase 1 grid ran before the
+initialisation fix (§6, item 6), and the arms that draw no synthetic pool — precisely the three
+simple baselines — reached model construction with an unseeded RNG stream. Phase 2 re-ran all three
+for TCN under identical settings with the fix in place, giving a rare direct read on the run-to-run
+floor:
+
+| baseline (TCN, 9 cells) | Phase 1 (unseeded) | Phase 2 re-run (seeded) | σ of the paired difference |
+|---|---|---|---|
+| `real_only` | 0.293 | 0.283 | 0.099 |
+| `class_weighted` | **0.364** | **0.271** | **0.159** |
+| `classical_aug` | 0.225 | 0.255 | 0.171 |
+| `ungated` (draws a pool) | 0.268 | 0.268 | **0.000** — identical in 9/9 cells |
+
+Scoring the same gated arm against the re-run baselines moves TCN's headline comparison from
+−0.063 (2/9 cells) to **+0.030 (3/9)**, and the registered-reference gap from −0.128 (0/9) to
+−0.059 (2/9). Neither reading is significant on any correction, so the conclusion — parity — is
+unchanged. What the two readings establish jointly is the bound: **two draws of the identical
+baseline differ by 0.093, which brackets the 0.063 the first reading appeared to show.** No
+cross-family effect of that size can be claimed from a design of this width, by us or by the
+literature we are comparing against.
+
+The `ungated` row is why the floor is measurable at all. Arms that draw a synthetic pool call
+`WGANGPProvider.generate`, which seeds `torch` and then samples on the GPU, leaving the *CPU*
+generator — the one model construction draws from — at exactly `manual_seed(seed)`. Those arms were
+therefore already seeded by accident, and the Phase 2 fix is a bit-exact no-op for them. Only the
+pool-free arms were exposed. The consequence is bounded and specific: **within-family comparisons
+(gated vs random_gated vs ungated) were always initialisation-controlled; comparisons against the
+simple baselines were not, in Phase 1 only.**
 
 ### 4.2 The gate cannot inject a dose
 
@@ -421,7 +467,7 @@ decision stage predicts the false-alarm tail regardless of how the windows were 
 with §4.4, two independent lines of evidence say the same thing — the gate's value lies in its
 decision and fallback, not in what it admits.
 
-### 4.6 Three evaluation pitfalls, quantified
+### 4.6 Four evaluation pitfalls, quantified
 
 1. **Selecting the comparison baseline on test inflates it by +0.035 event-F1.** A "best of three
    simple baselines per cell" reference scores 0.359 when chosen on test and 0.325 when chosen on
@@ -437,6 +483,15 @@ decision and fallback, not in what it admits.
    cells on validation; the threshold-free AUPRC rule at the source method's margin of 0.01 admits
    1 of 9 and 0 of 9. The two disagree on 8 of 9 and 9 of 9 cells. Which statistic the fail-closed
    rule compares is not an implementation detail.
+
+4. **An unmeasured run-to-run floor makes every small cross-family delta uninterpretable.** Re-running
+   three baseline conditions under identical settings, changing nothing but weight-initialisation
+   seeding, moved them by σ = 0.099–0.171 event-F1 and one of them by 0.093 in the mean (§4.1). That
+   is larger than every augmentation effect reported in the papers we compare against, and larger
+   than the effect we ourselves nearly reported. The cost of measuring it is one repeated arm; the
+   cost of not measuring it is that a null and a real effect are indistinguishable. **Report the
+   floor before reporting the effect.** We made this error too — it is the third of the four here
+   that changed one of our own conclusions.
 
 ### 4.7 Generator fidelity
 
@@ -541,17 +596,24 @@ Only measuring the realized quantity, rather than the requested one, exposed it.
    corpus used by the SzCORE challenge. Siena is specified but not run.
 2. **Underpowered.** n = 9 per detector from 3 folds × 3 seeds. Only the tail-control result
    survives correction for fold dependence and multiplicity.
-3. **Three folds of five**; the registered design is five.
-4. **Narrow validation panel.** Only 8 of 23 patient groups ever serve as validation, and five
-   appear in 4 of 5 folds, because the split routine deterministically carves the most
-   seizure-rich patients. Both the admission threshold and the fail-closed decision live entirely
-   on validation, so the gate has been evaluated on one near-fixed panel.
-5. **Scarcity fixed at 1.0**; the registered grid includes 0.5 and 0.25, where augmentation has
-   most to offer. This omission is conservative against our own negative result.
-6. **Unseeded initialisation in Phase 1.** Model construction preceded seeding, and arms drawing a
-   synthetic pool advanced the RNG stream by an arm-dependent amount, so cross-family comparisons
-   are not initialisation-controlled. Noise rather than bias, but it breaks pairing. Fixed for
-   Phase 2.
+3. **Three folds of five** in the headline (WGAN) grids; the registered design is five. The
+   earlier cVAE grid did run all five — see §7, deviation 3.
+4. **Narrow validation panel.** Only 8 of 23 patient groups ever serve as validation across all
+   five folds, and five of those appear in 4 of 5 folds, because the split routine
+   deterministically carves the most seizure-rich patients. In the three folds the headline grids
+   actually run it is narrower still — **7 of 23**, with chb01 and chb13 in all three. Both the
+   admission threshold and the fail-closed decision live entirely on validation, so the gate has
+   been evaluated on one near-fixed panel.
+5. **Scarcity fixed at 1.0 in the WGAN grids.** The registered 0.5 and 0.25 rungs — where
+   augmentation has most to offer — were run only with the cVAE at one seed (§7, deviation 6).
+   The negative result holds there too, but it has not been replicated with the headline
+   generator.
+6. **Unseeded initialisation in Phase 1.** Model construction preceded seeding. Arms drawing a
+   synthetic pool were seeded incidentally by the generator (§4.1) and are unaffected; the three
+   pool-free baselines were not, so Phase 1's cross-family comparisons are not
+   initialisation-controlled and its baseline rows are not reproducible. Fixed for Phase 2, which
+   re-ran all three for TCN — the re-run is what makes the floor in §4.1 measurable. EEGNet and
+   LCT baselines have not been re-run.
 7. **Phase 2 ran one detector** (TCN) for budget reasons; the cross-detector replication of the
    dose curve and the admission contrast is absent. See `README.md` "Budget-constrained scope".
 8. **Unconditional generators**; only the ictal phase is generated, which forecloses the
@@ -566,17 +628,34 @@ analysis, which is itself part of the record.
 
 | # | axis | registered | as run | status |
 |---|---|---|---|---|
-| **1** | **Harm reference** | best simple baseline per (fold, seed) — max of real_only, class_weighted, classical_aug | `real_only` only; the other two were never run | **Remedied** in Phase 1, which added both. The substitution was worth +0.163 event-F1 for TCN — roughly twice the effect originally claimed |
+| **1** | **Harm reference** | best simple baseline per (fold, seed) — max of real_only, class_weighted, classical_aug | `real_only` only in the multi-seed grid; the other two ran at Tier B but not there | **Remedied** in Phase 1, which added both. Worth **+0.163** event-F1 for TCN in the Tier B grid (5 folds, seed 42, cVAE) where it was first measured, **+0.135** in Phase 1 itself, and **+0.076** against Phase 2's re-seeded baselines. All three select the best arm on *test* and so are inflated by roughly +0.035 (§4.6, pitfall 1) |
 | 2 | Detectors | eegnet, lct, tcn | eegnet, tcn (LCT dropped) | **Remedied** in Phase 1. LCT is a detector where the simple baseline also wins |
-| 3 | Folds | 5 | 0, 1, 2 | **Stands.** Costs power, and per §4.4.1 the fold count — not the seed count — is the binding constraint on fold-corrected inference |
+| 3 | Folds | 5 | all 5 at Tier B (cVAE, seed 42); 0, 1, 2 in the WGAN grids | **Partly stands.** The registered 5-fold design was executed, but only with the appendix generator at one seed. The headline grids trade folds for seeds — which §4.4.1 shows was the wrong trade: fold count, not seed count, binds fold-corrected inference |
 | 4 | Core generator | cVAE core; WGAN-GP appendix | band-limited WGAN-GP as headline | **Stands.** Confirmatory → exploratory. Justified by a measured fidelity dead-end in the cVAE, but a deviation nonetheless |
 | 5 | Admission quantile | q_core 0.90; grid {0.75, 0.90, 0.99} | {0.90, 0.50}, then {0.9917, 0.9500} under the pool reference | **Superseded.** §4.2 shows q is not comparable across admission references: the same q admits 6 windows under `real_ictal` and 1,505 under `pool` |
-| 6 | Scarcity | 1.0, 0.5, 0.25 | 1.0 only | **Stands.** We ran in the regime where augmentation has least to offer, which is conservative against our own negative result |
+| 6 | Scarcity | 1.0, 0.5, 0.25 | all three at Tier B (cVAE, 5 folds, seed 42); 1.0 only in the WGAN grids | **Largely remedied.** The registered scarcity axis was run and the negative result holds at every rung — see below. Not replicated with the band-limited WGAN or at 3 seeds |
+
+**Deviations 3 and 6, resolved against the Tier B grid.** These two were previously declared as
+standing omissions. They are not: `tables/tierB_core.csv` holds the registered design — 5 folds
+× 3 scarcity levels × 3 detectors × 5 conditions — run with the cVAE at seed 42, and
+`scripts/verify_reported_numbers.py` reproduces it. Δ event-F1 against the registered
+best-simple-baseline reference:
+
+| scarcity | TCN ungated | TCN gated | LCT ungated | EEGNet ungated |
+|---|---|---|---|---|
+| 1.00 | −0.140 | −0.163 | −0.057 | +0.081 |
+| 0.50 | −0.106 | −0.103 | −0.127 | −0.045 |
+| 0.25 | −0.149 | −0.114 | −0.014 | −0.028 |
+
+**The negative result holds at every scarcity level, including the two where augmentation should
+have had its best case**, and across all five registered folds. That is a stronger statement than
+this paper previously made about itself. What remains genuinely un-run is the *combination*:
+scarcity 0.5 / 0.25 with the band-limited WGAN at three seeds.
 
 Two further departures arose during the work and are declared here for completeness: Phase 2 ran a
 **single detector** (TCN) for budget reasons, so its dose and admission results are not replicated
 across architectures; and Phase 1 was run with **unseeded weight initialisation** (§6, item 6),
-which breaks pairing for cross-family comparisons and was fixed only for Phase 2.
+which breaks pairing for its cross-family comparisons and was fixed only for Phase 2.
 
 We also record two corrections to our own analysis, both made before publication and both
 material: the harm reference was initially selected on *test* rather than validation, inflating it
@@ -588,17 +667,24 @@ briefly believed (§4.6).
 
 All results reproduce from this repository without a GPU except the detector grids.
 
-**Figures.** `scripts/make_preprint_figures.py` generates all three from the committed CSVs.
-It has **not been run on the authoring machine** — Windows Smart App Control blocks matplotlib's
-native extension there — so the figures are specified and their data verified, but unrendered.
-Run it anywhere matplotlib imports.
+**Figures.** `scripts/make_preprint_figures.py --out reports/figures` generates all three from
+the committed CSVs; the rendered PDFs are committed alongside. (Earlier drafts carried a warning
+that this had never been executed, because Windows Smart App Control blocked matplotlib on the
+authoring machine. That is no longer true.)
 
 | result | data | command |
 |---|---|---|
 | §4.1, §4.5 | `downstream_gated_v2.csv` | `analyze_multiseed.py --tag _v2` |
+| §4.1 (re-seeded baselines) | `downstream_gated_p2.csv` | `analyze_multiseed.py --csv … --conds-expected 9 --ratio 0.30` |
 | §4.2, §4.3 | `downstream_gated_p2.csv` | `analyze_multiseed.py --csv … --conds-expected 9 --ratio 0.10` |
 | §4.4 | `downstream_gated_p3.csv` | `analyze_multiseed.py --csv … --conds-expected 8` |
 | §4.7 | `w2_dose_prediction.csv` | `gen_w2_dose_prediction.py --device cpu` |
+| §7 (scarcity) | `tables/tierB_core.csv` | `scripts/verify_reported_numbers.py` |
+
+The two `--ratio` rungs write to distinct `analysis_p2_r01_*` / `analysis_p2_r03_*` outputs. Until
+2026-08-31 the `--ratio` filter also dropped the ratio-less baseline rows, so both commands above
+returned an all-NaN report; the numbers in §4.2–§4.3 were correct but were not produced by the
+command as printed. Fixed in `scripts/analyze_multiseed.py`.
 
 Full experimental record, including two corrections to our own analysis:
 `reports/DECISION_GATE_1.md`, `reports/DECISION_GATE_2.md`. Execution log: `the execution log`.

@@ -9,8 +9,13 @@ Reproduce:
 
 ```
 python3 scripts/analyze_multiseed.py --csv .../downstream_gated_p2.csv --conds-expected 9 --ratio 0.10
+python3 scripts/analyze_multiseed.py --csv .../downstream_gated_p2.csv --conds-expected 9 --ratio 0.30
 python3 scripts/analyze_multiseed.py --csv .../downstream_gated_p3.csv --conds-expected 8
 ```
+
+> **Requires `analyze_multiseed.py` at 2026-08-31 or later.** Before that fix the `--ratio` filter
+> dropped the ratio-less baseline rows and every `--ratio` invocation printed an all-NaN report.
+> See the AUDIT ADDENDUM at the end of this file.
 
 ---
 
@@ -186,7 +191,7 @@ are post-hoc among already-trained arms and cost nothing.
 | 1 | 0.450 | 0.073 | 6.1× |
 | 2 | 0.445 | 0.071 | 6.3× |
 
-W₂/floor ≈ 6.4 is interpretable and varies across cells, where `discriminator_auc` pinned at
+W₂/floor ≈ 6.3 (per-fold 6.4 / 6.1 / 6.3) is interpretable and varies across cells, where `discriminator_auc` pinned at
 1.000 in all 11 sweep rows and was retired as useless. This is a usable generator-quality number
 the project did not previously have, and it gives the pool-filtering result its mechanism: at
 q = 0.95 the teacher keeps the top 5 % of a pool that sits 6.4× further from real ictal than real
@@ -208,7 +213,8 @@ critic exists for any cell**; W₂ is estimated empirically by sliced Wasserstei
 ## Q4 re-audited against Q6 — and it survives
 
 Q6 created a specific reason to doubt Q4. The tail-control result pools 81 Phase 1 gated-family
-cells spanning two orders of magnitude in admitted count (6 to 2508). If the *admitted* cells were
+cells spanning nearly three orders of magnitude in admitted count (**0 to 2643**; 2,508 is the
+*intended* target for fold 0, not the largest admitted count — corrected 2026-08-31). If the *admitted* cells were
 systematically the low-dose ones — where the augmented model is nearly `real_only`, so ΔFP/24h ≈ 0
 by construction — and the *reverted* cells were the full-dose ones where synthetic inflates false
 alarms, then Q4 would be measuring **dose**, not the gate's decision.
@@ -281,3 +287,45 @@ previous one.
 | Q4 | What does the gate control? | **False-alarm tail**, replicated, and survives the circularity objection (`DECISION_GATE_1.md` CORRECTION 2) |
 | Q5 | Was the negative an artifact of dose? | **No** |
 | Q6 | Why did the gate never inject? | **Real-ictal reference; a divergence from the published rank cut** |
+
+
+---
+
+# AUDIT ADDENDUM (appended 2026-08-31)
+
+A full-project audit re-derived every statistic in this report from the committed CSVs. **All of
+them reproduce**, including the Q5 ladder, the Q6 admission counts, Q2's +0.072 / 0.020 / 0.140,
+the TOST margin and MDE figures in the correction block, and every number in the Q4 re-audit. Three
+things need recording.
+
+**1. The reproduce command at the top of this file was broken.** `analyze_multiseed.py --ratio 0.10`
+applied the rung filter to the three simple baselines, which carry `ratio = NaN`, so the registered
+reference resolved to empty and the entire report printed NaN. The numbers quoted here are correct
+— they were derived independently — but they did not come from that command. Fixed in
+`scripts/analyze_multiseed.py:237`; each rung now also writes to its own `analysis_p2_r*` outputs
+instead of silently overwriting the other's.
+
+**2. Q5's r = 1.00 rung is within-code, and this is now checkable.** The rung is read from the `_p3`
+grid, whose `ungated` arm is **bit-identical in all 9 cells** to Phase 1's, so the ladder is a
+single consistent comparison rather than a splice across code versions. Confirmed by direct
+comparison of the two CSVs.
+
+**3. The initialisation defect is measurable, and narrower than we described it.** `_p2` and `_p3`
+are bit-identical to each other in all 9 cells, so the post-fix pipeline is fully deterministic.
+Against Phase 1, `ungated` is also bit-identical — because `WGANGPProvider.generate` seeds `torch`
+and samples on the GPU, leaving the CPU stream (which `build_model` draws from) at exactly
+`manual_seed(seed)`. Pool-drawing arms were seeded by accident all along. The three pool-free
+baselines were not, and re-running them gives the run-to-run floor this project has always said was
+unmeasured:
+
+| baseline (TCN, 9 cells) | Phase 1 | `_p2` re-run | σ of paired difference | max ΔFP/24h |
+|---|---|---|---|---|
+| `real_only` | 0.293 | 0.283 | 0.099 | 76.1 |
+| `class_weighted` | 0.364 | 0.271 | **0.159** | 30.4 |
+| `classical_aug` | 0.225 | 0.255 | 0.171 | 68.1 |
+| `ungated` | 0.268 | 0.268 | 0.000 | 0.00 |
+
+Consequence for Phase 1: TCN's −0.063 against `class_weighted` becomes **+0.030** on the re-run
+baselines, and the registered-reference gap −0.128 becomes −0.059. Neither is significant either
+way, so no conclusion moves — but the −0.063 must stop being quoted as a magnitude. Only EEGNet
+and LCT baselines (54 cells) remain un-re-run.

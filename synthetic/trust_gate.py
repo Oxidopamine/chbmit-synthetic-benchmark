@@ -12,14 +12,17 @@ address (see ``PREREGISTRATION.md``). The gate has two stages:
    whose teacher confidence is at least the ``q``-quantile of a reference distribution.
    High ``q`` => stricter admission.
 
-   The reference is the *real* training ictal windows (``reference="real_ictal"``, as this
-   benchmark was built) or the candidate pool itself (``reference="pool"``, the rank cut TGA
-   actually publishes). **Nothing here computes a manifold distance** -- the criterion is the
-   teacher detector's seizure confidence and nothing else. TGA's covariance-manifold audit is
-   a separate, unimplemented component; do not describe this gate as enforcing it. The
-   real-ictal reference is also badly conditioned in practice, because the teacher saturates
-   on real ictal: q 0.50 -> 0.90 moves the threshold by 0.037 and changes admission 174x, and
-   q = 0.99 admits nothing at all (``the verification record`` §2.1).
+   The reference is the candidate pool itself (``reference="pool"``, the rank cut TGA actually
+   publishes, and the DEFAULT here) or the *real* training ictal windows
+   (``reference="real_ictal"``, as this benchmark was originally built). **Nothing here computes
+   a manifold distance** -- the criterion is the teacher detector's seizure confidence and
+   nothing else. TGA's covariance-manifold audit is a separate, unimplemented component; do not
+   describe this gate as enforcing it. The real-ictal reference is badly conditioned in
+   practice, because the teacher saturates on real ictal: q 0.50 -> 0.90 moves the threshold by
+   0.037 and changes admission 174x, q = 0.99 admits nothing at all (``the verification record``
+   §2.1), and in the live grids it admitted 6 windows against a target of 251 -- i.e. it
+   disabled the mechanism (``DECISION_GATE_2.md`` Q6). It is retained to reproduce Phases 1-2
+   and for the positive control, never as a default.
 
 2. **Fail-closed selection (event-level).** After training the augmented detector on
    real + admitted synthetic, compare its VALIDATION event-F1 / FP-24h to the real-only
@@ -49,10 +52,16 @@ class TrustGateConfig:
     fp24h_safety_slack: float = 0.25    # gated val FP/24h must not exceed teacher by > this
     min_admitted: int = 1               # below this, treat as "nothing admitted" (still trains real-only-like)
     score_batch_size: int = 256
-    # Admission reference distribution. "real_ictal" is what this benchmark built (quantile of
-    # the teacher's confidence on REAL training ictal windows); "pool" is the published TGA rule
-    # (a rank cut on the candidate pool itself -- see the verification record Sec 2.1).
-    reference: str = "real_ictal"       # "real_ictal" | "pool"
+    # Admission reference distribution. "pool" is the published TGA rule (a rank cut on the
+    # candidate pool itself) and is the default since 2026-08-31: admitted =
+    # min(oversample*(1-q), 1) * n_synth EXACTLY, so q is direct dose control.
+    # "real_ictal" is what this benchmark originally built (quantile of the teacher's confidence
+    # on REAL training ictal windows, which the teacher has MEMORISED). It admits 6 windows
+    # against a target of 251 and 23 against 752 -- the admitted count is decoupled from the
+    # request, and no ratio ladder moves it. It is kept ONLY to reproduce Phases 1-2 and for the
+    # positive control, where a real-ictal candidate pool makes it the right reference.
+    # See the verification record Sec 2.1 and DECISION_GATE_2.md Q6.
+    reference: str = "pool"             # "pool" (published) | "real_ictal" (Phases 1-2)
     # Which windows to keep once the admitted COUNT is fixed. "random" is the matched-volume
     # control the parent paper runs: same number of windows, drawn uniformly from the pool.
     selection: str = "teacher"          # "teacher" | "random"

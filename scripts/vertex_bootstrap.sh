@@ -116,6 +116,20 @@ log "=== deps ==="
 pip install -q "numpy>=1.24,<2.0" "zarr>=2.16,<3.0" numcodecs timescoring 2>&1 | tail -2
 python -c "import torch;print('torch',torch.__version__,'cuda',torch.cuda.is_available(),
       torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
+# Persist it too -- printing to a log that is not committed is why the torch build behind the
+# existing grids is unrecoverable (audit 2026-08-31).
+python - <<'PYENV' > "${GCS_RESULTS:-.}/run_environment.json" 2>/dev/null || true
+import json, platform, sys
+try:
+    import torch, numpy
+    env = {"torch": torch.__version__, "cuda": torch.version.cuda,
+           "cudnn": torch.backends.cudnn.version(), "numpy": numpy.__version__,
+           "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
+except Exception as e:                     # never fail the job over bookkeeping
+    env = {"error": str(e)}
+env.update({"python": sys.version, "platform": platform.platform()})
+print(json.dumps(env, indent=2))
+PYENV
 
 sync_loop() {
   while true; do
