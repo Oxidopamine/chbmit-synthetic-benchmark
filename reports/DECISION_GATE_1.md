@@ -6,7 +6,7 @@ jobs, 13.1 h wall-clock, no preemptions.
 
 Reproduce: `python3 scripts/analyze_multiseed.py --tag _v2`
 
-**Stop point.** Report here; do not auto-continue to Phase 2.
+**Decision point.** Phase 2 was scoped only after these results were reviewed.
 
 ---
 

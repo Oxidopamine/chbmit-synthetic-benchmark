@@ -705,7 +705,7 @@ Key documents:
 | [`PREREGISTRATION.md`](PREREGISTRATION.md) | analysis decisions fixed before test scoring |
 | [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) | Phase 1 results **and the correction to them** |
 | [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) | Phase 2 results — Q5, Q6 and the reopened Q2 |
-| [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) | manuscript draft (v0.1; discussion and bibliography still open) |
+| [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) | manuscript draft (v0.4; all sections drafted, bibliographic details pending) |
 
 ## Limitations
 

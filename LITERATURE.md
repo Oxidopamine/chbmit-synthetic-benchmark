@@ -276,8 +276,8 @@ datasets* — arXiv:2508.07253.
 
 ## 6. Generator evaluation: retire discriminator-AUC
 
-The observed saturation of real-vs-synthetic discriminator AUC at 1.0 is a known dead end. **[summary]** Current practice for generative time-series /
-EEG evaluation:
+The observed saturation of real-vs-synthetic discriminator AUC at 1.0 is a known dead end.
+**[summary]** Current practice for generative time-series / EEG evaluation:
 
 - **TSTR (train-on-synthetic, test-on-real)** — the standard functional utility metric.
 - **Channel-covariance Frobenius distance** — probes multichannel spatial coupling, the
