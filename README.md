@@ -9,9 +9,9 @@ The short answer, at n = 9 paired runs per detector across three architecture fa
 controls the false-alarm tail, and admission quality improves models — with no detectable
 carry-over to deployments, though this study is too small to call that equivalence.** Phase 2
 added three things: the negative result is **not** an artifact of
-injection dose; the gate as originally built **cannot inject a dose at all** (6–23 windows
-whatever is requested, because the admission threshold is calibrated on data the teacher has
-memorised); and with the published rank cut restored, teacher admission beats a random draw by
+injection dose; the gate as originally built **cannot inject a dose at all** (6 windows admitted
+against a request of 251, 23 against 752, because the admission threshold is calibrated on data
+the teacher has memorised); and with the published rank cut restored, teacher admission beats a random draw by
 +0.072 event-F1 in 8 of 9 cells — which **does not survive correction for fold dependence**.
 Details and caveats in [Results](#results).
 
@@ -93,12 +93,14 @@ turned out to matter more than we understood when we listed them**, and both are
 
 - **Admission reference.** TGA cuts by rank on the candidate pool; we thresholded on a quantile
   of real ictal windows. Because the teacher has memorised those windows, the threshold sits near
-  1.0 and the gate admits **6–23 windows whatever is requested** — the divergence did not shift
-  the operating point, it disabled the mechanism. Restoring the rank cut gives exact dose control
+  1.0 and the admitted count decouples from the request: at the Phase 2a rungs the TCN gate took
+  a median of **6 windows against a request of 251, and 23 against 752** — the divergence did not
+  shift the operating point, it disabled the mechanism. Restoring the rank cut gives exact dose control
   and is what made Q2 answerable.
-- **Minimum acceptance.** TGA uses `K_min = 200`; we used 1. Under the real-ictal reference,
-  **0 of 9 cells** ever reach 200 admitted windows, so the published safeguard would have
-  rejected every cell of Phase 1.
+- **Minimum acceptance.** TGA uses `K_min = 200`; we used 1. At the Phase 2a rungs **0 of 9 TCN
+  cells** reach 200 admitted windows (max 13 at r = 0.10, 38 at r = 0.30), so the published
+  safeguard would have rejected every one. It is not universal: in Phase 1 at q0.90, LCT clears
+  200 in **7 of 9** cells, while EEGNet and TCN clear it in 0 of 9.
 
 Both are in [Known issues](#known-issues) and [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) Q6.
 
@@ -182,6 +184,9 @@ flowchart LR
   G1 --> Q3["Q3 - no detector heterogeneity left to explain"]:::q
   G1 --> Q4["Q4 - false-alarm TAIL CONTROL<br/>the only result that survives correction"]:::q
   G2 --> Q5["Q5 - the null is not a dose artifact"]:::q
+  G3 --> Q5
+  G2 --> Q1
+  G3 --> Q1
   G2 --> Q6["Q6 - the gate could never inject a dose"]:::q
   G3 --> Q6
   G3 --> Q2["Q2 - better models; no detectable<br/>carry-over to deployments, but underpowered"]:::q
@@ -233,7 +238,7 @@ flowchart TB
     TEACH -. scores every candidate .-> ADM
     ADM --> GQ["gated q0.90 / q0.50"]:::synth
     ADM --> RG["random_gated<br/>matched volume, uniform draw"]:::synth
-    POOL --> UG["ungated<br/>inject the whole draw, no gate"]:::synth
+    BL --> UG["ungated<br/>draw r x n_train_pos directly<br/>no pool, no gate"]:::synth
     GQ --> AUG["Train augmented detector<br/>real windows + admitted synthetic"]:::proc
     RG --> AUG
     UG --> AUG
@@ -284,6 +289,7 @@ flowchart TB
   classDef bad   fill:#fef2f2,stroke:#b91c1c,color:#7f1d1d;
   classDef good  fill:#ecfdf5,stroke:#047857,color:#064e3b;
   classDef out   fill:#f8fafc,stroke:#475569,color:#0f172a;
+  classDef safe  fill:#f1f5f9,stroke:#0369a1,stroke-width:2px,color:#0c4a6e;
 
   subgraph ST1["STAGE 1 — admission, window level"]
     direction TB
@@ -292,8 +298,8 @@ flowchart TB
     SCORE --> CUT{"teacher score >= tau_q ?"}:::gate
     CUT -->|yes| KEEP["Admitted, capped at the target count"]:::pool
     CUT -->|no| DROP["Discarded"]:::out
-    R1["reference = real_ictal - AS BUILT, all of Phase 1<br/>tau_q = q-quantile of teacher scores on REAL train ictal.<br/>The teacher has MEMORISED those windows, so tau sits near 1.0<br/>and the gate admits 6-23 windows whatever is requested:<br/>0.4-0.5% of the pool at any target. The mechanism is disabled."]:::bad
-    R2["reference = pool - TGA AS PUBLISHED, Phase 2 default<br/>tau_q = q-quantile of the pool's own scores, i.e. a rank cut.<br/>admitted = min(6(1-q), 1) x n_synth exactly,<br/>so q = 1 - r/6 hits any requested dose r.<br/>Confirmed live: q=0.9917 -> 126, q=0.9500 -> 755."]:::good
+    R1["reference = real_ictal - AS BUILT, Phases 1 and 2a<br/>tau_q = q-quantile of teacher scores on REAL train ictal.<br/>The teacher has MEMORISED those windows, so tau sits near 1.0.<br/>Phase 2a, TCN: 6 admitted of 251 requested, 23 of 752.<br/>Phase 1, q0.90: median 80 of ~2500, but 0 to 580 across cells.<br/>Either way the admitted count is decoupled from the request."]:::bad
+    R2["reference = pool - TGA AS PUBLISHED, restored in Phase 2b<br/>tau_q = q-quantile of the pool's own scores, i.e. a rank cut.<br/>admitted = min(6(1-q), 1) x n_synth exactly,<br/>so q = 1 - r/6 hits any requested dose r.<br/>Confirmed live: q=0.9917 -> 126, q=0.9500 -> 755."]:::good
     R1 -. sets tau_q .-> CUT
     R2 -. sets tau_q .-> CUT
   end
@@ -303,8 +309,8 @@ flowchart TB
     KEEP --> TRAIN["Train the augmented detector<br/>real + admitted synthetic"]:::out
     TRAIN --> DEC{"val event-F1 >= teacher + 0.00<br/>AND val FP/24h <= teacher + 0.25<br/>AND n_admitted >= K_min"}:::gate
     DEC -->|all pass| DEPLOY["Deploy the augmented model"]:::good
-    DEC -->|any fail| REVERT["Fail closed: revert to the real_only teacher"]:::bad
-    KMIN["K_min = 1 here; TGA publishes 200.<br/>Under reference=real_ictal, 0 of 9 cells ever reach 200,<br/>so the published safeguard would have rejected every cell."]:::bad
+    DEC -->|any fail| REVERT["Fail closed: revert to the real_only teacher"]:::safe
+    KMIN["K_min = 1 here; TGA publishes 200.<br/>Phase 2a, TCN: 0 of 9 cells reach 200 (max 13, then 38).<br/>Phase 1 q0.90: only LCT clears it, 7 of 9; EEGNet and TCN 0 of 9."]:::bad
     KMIN -. constrains .-> DEC
   end
 ```
@@ -314,8 +320,9 @@ scores on *real* ictal windows, and the teacher saturates there, moving `q` from
 shifts the threshold by 0.037 while changing admission **174×**. At q = 0.99 nothing is admitted
 at all. The published method instead takes a rank cut on the candidate pool, which is
 well-conditioned; `TrustGateConfig.reference = "pool"` implements that, is exposed as
-`--gate-reference pool`, and is the Phase 2 default. The option existed from the start but the
-driver never set it, so it was present and unreachable until Phase 2 — see
+`--gate-reference pool`, and is the Phase 2b default — Phase 2a still ran `real_ictal`. The
+option existed from the start but the driver never set it, so it was present and unreachable
+until Phase 2b — see
 [Q6](#q6--why-did-the-gate-never-inject-anything).
 
 Observed admission across the 27 gated q = 0.90 cells of Phase 1: **median 80 windows**
@@ -361,7 +368,7 @@ settings with the initialisation fix in place (Known issue #1), and they moved b
 | `real_only` | 0.293 | 0.283 | 0.099 |
 | `class_weighted` | **0.364** | **0.271** | **0.159** |
 | `classical_aug` | 0.225 | 0.255 | 0.171 |
-| `ungated` (draws a pool, so was seeded incidentally) | 0.268 | 0.268 | 0.000 — identical 9/9 |
+| `ungated` (draws synthetic windows, so was seeded incidentally) | 0.268 | 0.268 | 0.000 — identical 9/9 |
 
 Against the re-run baselines the same gated arm reads **+0.030 (3/9)** instead of −0.063 (2/9),
 and −0.059 instead of −0.128 against the best-of-3 reference. Nothing is significant either way,
@@ -433,7 +440,12 @@ curve is theoretically U-shaped, that was a real confound. Filling it:
 | ungated r = 0.30 | 0.217 | −0.065 | 4/9 |
 | ungated r = 1.00 | 0.268 | −0.015 | 5/9 |
 
-Monotone through the parent's band, **no interior peak**, nothing significant. The Phase 1
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/fig2_dose_response-dark.png">
+  <img alt="Test event-F1 against realized injection ratio for the ungated arm at r = 0, 0.10, 0.30 and 1.00: means 0.283, 0.264, 0.217, 0.268. The curve falls then recovers, with no peak inside the source method's 0.05-0.30 operating band." src="reports/figures/fig2_dose_response-light.png" width="100%">
+</picture>
+
+**Monotone through the parent's band, no interior peak**, nothing significant. The Phase 1
 conclusion stands on better ground than before.
 
 ### Q6 — Why did the gate never inject anything?
@@ -444,9 +456,19 @@ conclusion stands on better ground than before.
 it. TGA publishes a pool rank cut; this benchmark substituted a real-ictal quantile, and the
 substitution did not merely shift the operating point — it disabled the mechanism.
 
-With `reference="pool"` restored, admitted = `min(oversample·(1−q), 1) · n_synth` **exactly**, so
-q becomes direct dose control. Confirmed live: q = 0.9917 → 126 admitted (predicted 125),
-q = 0.9500 → 755 (predicted 752).
+With `reference="pool"` restored, admitted tracks `min(oversample·(1−q), 1) · n_synth`, so q
+becomes direct dose control. Confirmed live: q = 0.9917 → 126 admitted (predicted 125),
+q = 0.9500 → 755 (predicted 752). It is close but **not exact** — 5 of the 18 pool cells land
+off the predicted count, all of them in fold 0, by at most 11 windows.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/fig1_realized_vs_requested-dark.png">
+  <img alt="Requested against admitted synthetic windows, log-log with an identity line. Under the real_ictal reference the gate admits 1-13 windows when asked for 241-264 and 7-38 when asked for 722-793, a floor independent of the request. Under the pool reference admitted tracks requested across 120-793, never off by more than 11 windows." src="reports/figures/fig1_realized_vs_requested-light.png" width="100%">
+</picture>
+
+*Under `real_ictal` the admitted count is decoupled from the request — a floor, not a dose.
+Under `pool` the gate delivers what it is asked for.*
+
 
 Compounding it: TGA publishes `K_min = 200`; this benchmark used 1. **0 of 9 cells** reach 200
 admitted windows under the real-ictal reference — the published safeguard would have admitted
@@ -467,6 +489,14 @@ gate's own admit/revert decision (Δ against `real_only`, augmented model):
 |---|---|---|---|---|---|
 | **admitted** | 21 | **−22.58** | −26.34 | **+15.28** | +0.031 |
 | **reverted** | 60 | **+10.90** | +13.83 | **+62.63** | −0.025 |
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/fig3_tail_control-dark.png">
+  <img alt="Every cell of the 81 gated-family runs, split by the gate's own admit/revert decision. Admitted cells sit below the +20 FP/24 h tail threshold in 0 of 21 cases; reverted cells exceed it in 23 of 60. The separation holds inside each of the three arms, so it is not a dose artefact." src="reports/figures/fig3_tail_control-light.png" width="100%">
+</picture>
+
+*Every point is one (fold, seed, detector) cell; horizontal bars are group medians. The
+separation holds **within** each arm, which is what rules out dose as the explanation.*
 
 - ΔFP/24 h separation: Mann–Whitney **p < 0.0001**; within-fold permutation (20,000 draws)
   **p < 0.0001**, both two-sided
