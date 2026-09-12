@@ -45,5 +45,24 @@ jobs:
           grep -q "registered-reference event-F1 0.359" /tmp/p2.txt
           ! grep -q "d +nan" /tmp/p2.txt
 
+      # Phase 3 free analysis (validation-selected reference, competitor policies, harm curves,
+      # power table) must reproduce from the committed CSVs; its pinned numbers are also tested
+      # in tests/test_phase3_free_analysis.py.
+      - name: Phase 3 free analysis reproduces
+        run: |
+          python scripts/analyze_validation_selection.py --out /tmp/phase3_free | tee /tmp/p3.txt
+          grep -q "test-selection inflation +0.035" /tmp/p3.txt
+          grep -q "null harm rate at dF1 margin 0.01: 0.50" /tmp/p3.txt
+
+      # The Phase 3 split files are derived, not hand-written; regenerating them must give the
+      # committed bytes.
+      - name: Phase 3 split files are reproducible
+        run: |
+          python scripts/make_phase3_splits.py --out-dir /tmp/splits
+          cmp /tmp/splits/splits_rot5_seed42.json results_chbmit_synthetic/real_validation/splits/splits_rot5_seed42.json
+          cmp /tmp/splits/splits_logo23_seed42.json results_chbmit_synthetic/real_validation/splits/splits_logo23_seed42.json
+
       - name: Figures render
-        run: python scripts/make_preprint_figures.py --out /tmp/figures
+        run: |
+          python scripts/analyze_validation_selection.py --out results_chbmit_synthetic/real_validation/analysis_tierB/phase3_free > /dev/null
+          python scripts/make_preprint_figures.py --out /tmp/figures

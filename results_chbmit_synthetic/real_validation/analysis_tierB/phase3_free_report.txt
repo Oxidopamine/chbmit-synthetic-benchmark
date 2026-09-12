@@ -1,0 +1,154 @@
+Nadeau-Bengio rho (n_test/n_train, folds 0-2) = 0.3168
+
+==============================================================================
+p2_r010: downstream_gated_p2.csv ratio 0.1  (TCN, n = 9 cells)
+==============================================================================
+
+(1) Registered reference: chosen on TEST vs chosen on VALIDATION
+    test-selected  mean event-F1 0.359  arms {'real_only': 4, 'class_weighted': 3, 'classical_aug': 2}
+    val-selected   mean event-F1 0.325  arms {'class_weighted': 7, 'real_only': 1, 'classical_aug': 1}
+    same arm in 5/9 cells; test-selection inflation +0.035
+
+(2) Deployable policies vs the VALIDATION-selected registered reference
+    policy                           F1     dF1   p_NB  FP/24h     dFP  worstdFP tail>20  harm
+    real_only                     0.283  -0.042  0.628   39.06  +32.96    +74.69       6  0.78
+    class_weighted                0.271  -0.054  0.463   14.42   +8.32    +55.86       1  0.22
+    classical_aug                 0.255  -0.070  0.416   29.19  +23.09    +71.42       4  0.78
+    ungated                       0.264  -0.061  0.623   57.37  +51.27   +160.53       7  0.89
+    ungated_failclosed            0.287  -0.038  0.690   27.46  +21.36    +57.96       5  0.78
+    valsel4                       0.313  -0.012  0.624    6.94   +0.84     +7.59       0  0.11
+    valsel4_fpguard               0.316  -0.009  0.725    6.67   +0.57     +7.59       0  0.11
+    admit_always q0.9             0.294  -0.031  0.755   18.55  +12.45    +36.46       3  0.89
+    gated q0.9                    0.320  -0.004  0.958   17.34  +11.24    +36.01       3  0.78
+    gated q0.9 -> valsel3         0.322  -0.003  0.971   15.38   +9.28    +36.01       2  0.67
+    random_gated q0.9             0.323  -0.001  0.987   26.42  +20.32    +52.99       5  0.78
+    valsel5 q0.9                  0.313  -0.012  0.624    6.94   +0.84     +7.59       0  0.11
+
+    Head-to-head with the gate as deployed (positive = competitor better):
+      valsel4                    vs gated q0.9     dF1 -0.007 NB95 [-0.197,+0.182] p_wil 0.945 p_NB 0.931  (+3/-5/=1)  dFP -10.40
+      valsel4_fpguard            vs gated q0.9     dF1 -0.005 NB95 [-0.194,+0.185] p_wil 1.000 p_NB 0.957  (+3/-4/=2)  dFP -10.68
+      ungated_failclosed         vs gated q0.9     dF1 -0.034 NB95 [-0.137,+0.069] p_wil 0.156 p_NB 0.471  (+1/-5/=3)  dFP +10.12
+      gated q0.9 -> valsel3      vs gated q0.9     dF1 +0.001 NB95 [-0.023,+0.026] p_wil 1.000 p_NB 0.900  (+1/-1/=7)  dFP -1.97
+      valsel5 q0.9               vs gated q0.9     dF1 -0.007 NB95 [-0.197,+0.182] p_wil 0.945 p_NB 0.931  (+3/-5/=1)  dFP -10.40
+      best_simple_valselected    vs gated q0.9     dF1 +0.004 NB95 [-0.188,+0.197] p_wil 0.844 p_NB 0.958  (+4/-4/=1)  dFP -11.24
+      class_weighted             vs gated q0.9     dF1 -0.049 NB95 [-0.293,+0.194] p_wil 0.426 p_NB 0.652  (+3/-6/=0)  dFP -2.93
+    7 head-to-head tests in this grid; Bonferroni alpha 0.05 -> p < 0.0071
+    arms chosen by valsel4: {'class_weighted': 6, 'real_only': 1, 'classical_aug': 1, 'ungated': 1} | ungated_failclosed deployed ungated in 3 cells
+
+==============================================================================
+p2_r030: downstream_gated_p2.csv ratio 0.3  (TCN, n = 9 cells)
+==============================================================================
+
+(1) Registered reference: chosen on TEST vs chosen on VALIDATION
+    test-selected  mean event-F1 0.359  arms {'real_only': 4, 'class_weighted': 3, 'classical_aug': 2}
+    val-selected   mean event-F1 0.325  arms {'class_weighted': 7, 'real_only': 1, 'classical_aug': 1}
+    same arm in 5/9 cells; test-selection inflation +0.035
+
+(2) Deployable policies vs the VALIDATION-selected registered reference
+    policy                           F1     dF1   p_NB  FP/24h     dFP  worstdFP tail>20  harm
+    real_only                     0.283  -0.042  0.628   39.06  +32.96    +74.69       6  0.78
+    class_weighted                0.271  -0.054  0.463   14.42   +8.32    +55.86       1  0.22
+    classical_aug                 0.255  -0.070  0.416   29.19  +23.09    +71.42       4  0.78
+    ungated                       0.217  -0.108  0.317   39.60  +33.50    +87.28       5  1.00
+    ungated_failclosed            0.305  -0.020  0.811   26.50  +20.40    +52.99       5  0.78
+    valsel4                       0.279  -0.046  0.502   12.98   +6.88    +54.10       1  0.33
+    valsel4_fpguard               0.326  +0.001  0.919    6.29   +0.19     +4.18       0  0.11
+    admit_always q0.9             0.189  -0.136  0.194   57.58  +51.48   +271.80       4  1.00
+    gated q0.9                    0.283  -0.042  0.600   19.26  +13.16    +50.26       3  0.78
+    gated q0.9 -> valsel3         0.311  -0.014  0.635    6.93   +0.83     +4.42       0  0.33
+    random_gated q0.9             0.275  -0.050  0.541   16.62  +10.52    +50.26       2  0.78
+    valsel5 q0.9                  0.270  -0.055  0.422   13.12   +7.01    +54.10       1  0.44
+
+    Head-to-head with the gate as deployed (positive = competitor better):
+      valsel4                    vs gated q0.9     dF1 -0.004 NB95 [-0.242,+0.234] p_wil 1.000 p_NB 0.970  (+4/-5/=0)  dFP -6.28
+      valsel4_fpguard            vs gated q0.9     dF1 +0.043 NB95 [-0.130,+0.216] p_wil 0.375 p_NB 0.584  (+5/-2/=2)  dFP -12.97
+      ungated_failclosed         vs gated q0.9     dF1 +0.023 NB95 [-0.066,+0.111] p_wil 0.375 p_NB 0.571  (+3/-1/=5)  dFP +7.24
+      gated q0.9 -> valsel3      vs gated q0.9     dF1 +0.028 NB95 [-0.143,+0.200] p_wil 0.625 p_NB 0.712  (+3/-2/=4)  dFP -12.33
+      valsel5 q0.9               vs gated q0.9     dF1 -0.013 NB95 [-0.246,+0.221] p_wil 0.844 p_NB 0.903  (+3/-5/=1)  dFP -6.15
+      best_simple_valselected    vs gated q0.9     dF1 +0.042 NB95 [-0.136,+0.220] p_wil 0.383 p_NB 0.600  (+5/-3/=1)  dFP -13.16
+      class_weighted             vs gated q0.9     dF1 -0.012 NB95 [-0.265,+0.242] p_wil 0.910 p_NB 0.917  (+4/-5/=0)  dFP -4.84
+    7 head-to-head tests in this grid; Bonferroni alpha 0.05 -> p < 0.0071
+    arms chosen by valsel4: {'class_weighted': 6, 'ungated': 3} | ungated_failclosed deployed ungated in 3 cells
+
+==============================================================================
+p3_r100: downstream_gated_p3.csv ratio 1.0  (TCN, n = 9 cells)
+==============================================================================
+
+(1) Registered reference: chosen on TEST vs chosen on VALIDATION
+    test-selected  mean event-F1 0.359  arms {'real_only': 4, 'class_weighted': 3, 'classical_aug': 2}
+    val-selected   mean event-F1 0.325  arms {'class_weighted': 7, 'real_only': 1, 'classical_aug': 1}
+    same arm in 5/9 cells; test-selection inflation +0.035
+
+(2) Deployable policies vs the VALIDATION-selected registered reference
+    policy                           F1     dF1   p_NB  FP/24h     dFP  worstdFP tail>20  harm
+    real_only                     0.283  -0.042  0.628   39.06  +32.96    +74.69       6  0.78
+    class_weighted                0.271  -0.054  0.463   14.42   +8.32    +55.86       1  0.22
+    classical_aug                 0.255  -0.070  0.416   29.19  +23.09    +71.42       4  0.78
+    ungated                       0.268  -0.057  0.668   38.97  +32.87    +83.68       5  1.00
+    ungated_failclosed            0.341  +0.017  0.877   22.42  +16.32    +52.99       4  0.78
+    valsel4                       0.291  -0.033  0.624   13.53   +7.43    +66.87       1  0.11
+    valsel4_fpguard               0.328  +0.003  0.624    5.82   -0.28     +0.00       0  0.00
+    admit_always q0.95            0.277  -0.048  0.635   14.67   +8.57    +29.86       1  1.00
+    admit_always q0.9917          0.263  -0.062  0.609   31.95  +25.85    +83.81       3  1.00
+    gated q0.95                   0.300  -0.025  0.799   13.84   +7.74    +29.86       1  0.78
+    gated q0.95 -> valsel3        0.297  -0.028  0.775   14.11   +8.01    +29.86       1  0.78
+    gated q0.9917                 0.297  -0.028  0.747   23.41  +17.31    +52.99       3  0.78
+    gated q0.9917 -> valsel3      0.314  -0.011  0.779    7.43   +1.33     +9.60       0  0.33
+    random_gated q0.95            0.307  -0.018  0.832   27.27  +21.17    +52.99       4  0.78
+    random_gated q0.9917          0.306  -0.019  0.841   26.64  +20.54    +55.04       4  0.67
+    valsel5 q0.95                 0.304  -0.021  0.624    6.14   +0.04     +0.39       0  0.11
+    valsel5 q0.9917               0.313  -0.012  0.624    5.31   -0.79     +0.00       0  0.11
+
+    Head-to-head with the gate as deployed (positive = competitor better):
+      valsel4                    vs gated q0.95    dF1 -0.008 NB95 [-0.215,+0.198] p_wil 0.844 p_NB 0.929  (+3/-5/=1)  dFP -0.31
+      valsel4_fpguard            vs gated q0.95    dF1 +0.028 NB95 [-0.190,+0.246] p_wil 0.688 p_NB 0.775  (+4/-3/=2)  dFP -8.01
+      ungated_failclosed         vs gated q0.95    dF1 +0.042 NB95 [-0.075,+0.158] p_wil 0.219 p_NB 0.434  (+5/-2/=2)  dFP +8.58
+      gated q0.95 -> valsel3     vs gated q0.95    dF1 -0.003 NB95 [-0.016,+0.010] p_wil 1.000 p_NB 0.624  (+0/-1/=8)  dFP +0.28
+      valsel5 q0.95              vs gated q0.95    dF1 +0.004 NB95 [-0.195,+0.202] p_wil 1.000 p_NB 0.966  (+3/-4/=2)  dFP -7.69
+      best_simple_valselected    vs gated q0.95    dF1 +0.025 NB95 [-0.195,+0.245] p_wil 0.742 p_NB 0.799  (+4/-4/=1)  dFP -7.74
+      class_weighted             vs gated q0.95    dF1 -0.029 NB95 [-0.265,+0.207] p_wil 0.570 p_NB 0.785  (+3/-6/=0)  dFP +0.58
+      valsel4                    vs gated q0.9917  dF1 -0.005 NB95 [-0.221,+0.211] p_wil 0.844 p_NB 0.957  (+3/-5/=1)  dFP -9.88
+      valsel4_fpguard            vs gated q0.9917  dF1 +0.031 NB95 [-0.162,+0.224] p_wil 0.578 p_NB 0.720  (+4/-3/=2)  dFP -17.58
+      ungated_failclosed         vs gated q0.9917  dF1 +0.045 NB95 [-0.066,+0.156] p_wil 0.125 p_NB 0.381  (+4/-0/=5)  dFP -0.99
+      gated q0.9917 -> valsel3   vs gated q0.9917  dF1 +0.017 NB95 [-0.160,+0.195] p_wil 1.000 p_NB 0.828  (+2/-3/=4)  dFP -15.98
+      valsel5 q0.9917            vs gated q0.9917  dF1 +0.016 NB95 [-0.174,+0.205] p_wil 0.938 p_NB 0.851  (+3/-4/=2)  dFP -18.10
+      best_simple_valselected    vs gated q0.9917  dF1 +0.028 NB95 [-0.167,+0.223] p_wil 0.641 p_NB 0.747  (+4/-4/=1)  dFP -17.31
+      class_weighted             vs gated q0.9917  dF1 -0.026 NB95 [-0.265,+0.213] p_wil 0.570 p_NB 0.810  (+3/-6/=0)  dFP -8.99
+    14 head-to-head tests in this grid; Bonferroni alpha 0.05 -> p < 0.0036
+    arms chosen by valsel4: {'class_weighted': 7, 'real_only': 1, 'ungated': 1} | ungated_failclosed deployed ungated in 3 cells
+
+==============================================================================
+(3) Different-initialisation floor: 27 same-spec pairs (_v2 vs _p2, TCN)
+==============================================================================
+     condition  sigma_f1  max_abs_d_f1  sigma_fp  max_abs_d_fp  n
+class_weighted     0.159         0.399    10.015        30.392  9
+ classical_aug     0.171         0.251    37.342        68.070  9
+     real_only     0.099         0.177    27.495        76.120  9
+    null harm rate at dF1 margin 0.01: 0.50
+    null harm rate at dF1 margin 0.05: 0.35
+    null harm rate at dF1 margin 0.10: 0.22
+    null harm rate at dF1 margin 0.15: 0.15
+    null harm rate at dF1 margin 0.20: 0.09
+    null harm rate at dFP/24h margin  0.25: 0.46
+    null harm rate at dFP/24h margin  5.00: 0.35
+    null harm rate at dFP/24h margin 10.00: 0.28
+    null harm rate at dFP/24h margin 20.00: 0.20
+    null harm rate at dFP/24h margin 40.00: 0.11
+    (registered margins are 0.01 and 0.25: at those the null flags roughly half of all
+     same-specification re-runs as 'harm')
+
+==============================================================================
+(4) Phase 3 power design (Nadeau-Bengio, 80% power, two-sided alpha 0.05)
+==============================================================================
+    design                                      n    rho  se_NB    MDE  floor
+    3 folds x 3 seeds (as run)                  9  0.317  0.061  0.196  0.053
+    5 folds x 1 seed                            5  0.319  0.068  0.252  0.053
+    5 folds x 3 seeds                          15  0.319  0.058  0.176  0.053
+    10 folds x 1 seed                          10  0.138  0.046  0.144  0.035
+    10 folds x 3 seeds                         30  0.138  0.039  0.113  0.035
+    23 folds x 1 seed (leave-one-group-out)    23  0.056  0.030  0.087  0.022
+    23 folds x 2 seeds (leave-one-group-out)   46  0.056  0.026  0.075  0.022
+    23 folds x 3 seeds (leave-one-group-out)   69  0.056  0.025  0.071  0.022
+    sd sources available: {'ungated - real_only (p2, r=0.30)': 0.124, 'valsel4 - gated q0.95 (p3)': 0.137, 'ungated - real_only (p3, r=1.0)': 0.186, 'DG2 reference sd 0.094': 0.094}
+
+wrote results_chbmit_synthetic\real_validation\analysis_tierB\phase3_free/

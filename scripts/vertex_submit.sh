@@ -21,10 +21,21 @@ set -euo pipefail
 BUCKET="${BUCKET:-chbmit-bench-2486a474}"
 REGION="${REGION:-us-central1}"
 SUFFIX="${1:-_v2}"
-# NOT REPRODUCIBLE AS WRITTEN: ":latest" floats, so the torch build behind a grid is not
-# recoverable after the fact -- see requirements.txt. Pin by digest for any grid whose numbers
-# will be published:  IMAGE="...pytorch-gpu.2-4.py310@sha256:<digest>"
-IMAGE="us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-4.py310:latest"
+# Pin the image for any grid whose numbers will be published. IMAGE_DIGEST is the sha256 of the
+# pytorch-gpu.2-4.py310 image actually used; resolve it once with
+#   gcloud container images describe us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-4.py310:latest --format='value(image_summary.digest)'
+# and export it before submitting. Without it the tag floats and the torch build behind the grid
+# is not recoverable after the fact (AUDIT_2026-08-31 F7) -- the submit refuses unless
+# ALLOW_FLOATING_IMAGE=1 is set explicitly.
+IMAGE_BASE="us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-4.py310"
+if [ -n "${IMAGE_DIGEST:-}" ]; then
+  IMAGE="${IMAGE_BASE}@${IMAGE_DIGEST}"
+elif [ "${ALLOW_FLOATING_IMAGE:-0}" = "1" ]; then
+  IMAGE="${IMAGE_BASE}:latest"
+else
+  echo "refusing to submit against a floating image tag; export IMAGE_DIGEST=sha256:... or ALLOW_FLOATING_IMAGE=1" >&2
+  exit 4
+fi
 MACHINE="${MACHINE:-a2-highgpu-1g}"
 ACCEL="${ACCEL:-NVIDIA_TESLA_A100}"
 DETECTORS="${DETECTORS:-eegnet lct tcn}"
@@ -37,6 +48,11 @@ NUM_WORKERS="${NUM_WORKERS:-0}"
 RATIOS="${RATIOS:-1.0}"
 RANDOM_QS="${RANDOM_QS:-$QS}"
 GATE_REFERENCE="${GATE_REFERENCE:-real_ictal}"
+# Phase 3 axes, passed through to vertex_bootstrap.sh (see there for meanings).
+SPLITS="${SPLITS:-splits_seed42.json}"
+SCARCITY="${SCARCITY:-1.0}"
+MODE="${MODE:-grid}"
+POSCTRL_ARGS="${POSCTRL_ARGS:-}"
 # How to shard across the 3-concurrent-job quota ceiling. "detector" is the Phase 1 pattern.
 # "seed" is for reduced grids that run ONE detector: a single job would be ~14 h, long enough
 # that Spot preemption is likely, so split into three ~5 h jobs instead. The run is resumable
@@ -129,11 +145,19 @@ workerPoolSpecs:
           value: "${GATE_REFERENCE}"
         - name: NUM_WORKERS
           value: "${NUM_WORKERS}"
+        - name: SPLITS
+          value: "${SPLITS}"
+        - name: SCARCITY
+          value: "${SCARCITY}"
+        - name: MODE
+          value: "${MODE}"
+        - name: POSCTRL_ARGS
+          value: "${POSCTRL_ARGS}"
 scheduling:
   strategy: SPOT
   restartJobOnWorkerRestart: true
 YAML
-  echo "=== submitting detector=${DET} seeds=[${JOB_SEEDS}] ratios=[${RATIOS}] tag=${TAG} ==="
+  echo "=== submitting mode=${MODE} detector=${DET} seeds=[${JOB_SEEDS}] ratios=[${RATIOS}] splits=${SPLITS} tag=${TAG} image=${IMAGE} ==="
   if [ "$DRY_RUN" = "1" ]; then
     echo "--- DRY RUN: not submitted ---"
     grep -E "machineType:|name: (DETECTOR|SEEDS|FOLDS|QS|RATIOS|RANDOM_QS|TAG)$" -A 1 "$CFG" \

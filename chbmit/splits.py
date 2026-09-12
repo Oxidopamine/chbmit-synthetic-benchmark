@@ -18,7 +18,7 @@ import json
 import random
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Sequence
 
 
 @dataclass
@@ -143,6 +143,67 @@ def _carve_validation(
     return train, val
 
 
+def _rotate_validation(
+    assign: Dict[int, List[str]],
+    fold: int,
+    weights: Optional[Dict[str, float]],
+    val_fraction: float,
+) -> List[str]:
+    """Validation for ``fold`` = the next fold(s) in cyclic order, taken whole.
+
+    Rotation is the fix for the narrow-panel defect of ``_carve_validation``: that routine sorts
+    the training pool by seizure count and takes the richest groups first, so the SAME few
+    seizure-rich patients serve as validation in almost every fold (7 of 23 groups across the
+    three folds that were run; chb01 and chb13 in all three). Every gate decision in Phases 1-2
+    was therefore made on a near-fixed panel. Taking whole folds in cyclic order instead gives
+    every group a turn as validation, keeps validation disjoint from test by construction, and
+    inherits the seizure balance of the fold partition.
+
+    ``weights`` (typically total duration per group) decide how many folds to take: enough to
+    reach ``val_fraction`` of the non-test material. Without weights every group counts 1, which
+    is what the names-only Phase 3 split files use.
+    """
+    k = len(assign)
+    non_test = [g for f in assign if f != fold for g in assign[f]]
+    w = (lambda g: weights.get(g, 1.0)) if weights else (lambda g: 1.0)
+    target = val_fraction * sum(w(g) for g in non_test)
+    val: List[str] = []
+    acc = 0.0
+    for step in range(1, k):
+        nxt = assign[(fold + step) % k]
+        if acc >= target and val:
+            break
+        if len(val) + len(nxt) >= len(non_test):
+            break  # always leave >= 1 group for training
+        val.extend(nxt)
+        acc += sum(w(g) for g in nxt)
+    return val
+
+
+def splits_from_assignment(
+    assign: Dict[int, List[str]],
+    all_groups: Sequence[str],
+    val_fraction: float = 0.20,
+    weights: Optional[Dict[str, float]] = None,
+) -> List[Split]:
+    """Build rotating-validation splits from an existing fold-to-test-groups assignment.
+
+    Used to derive the Phase 3 split files from the COMMITTED test partition
+    (``splits_seed42.json``), so the test folds stay identical to Phases 1-2 and only the
+    validation panel changes.
+    """
+    splits: List[Split] = []
+    for fold in sorted(assign):
+        test_groups = sorted(assign[fold])
+        val_groups = _rotate_validation(assign, fold, weights, val_fraction)
+        train_groups = [g for g in all_groups if g not in test_groups and g not in val_groups]
+        if not train_groups:
+            raise ValueError(f"fold {fold}: no training groups left after rotation")
+        splits.append(Split(fold=fold, train_groups=sorted(train_groups),
+                            val_groups=sorted(val_groups), test_groups=test_groups))
+    return splits
+
+
 def make_splits(
     index_df,
     n_folds: int = 5,
@@ -150,9 +211,27 @@ def make_splits(
     seed: int = 42,
     require_seizure_in_val: bool = True,
     require_seizure_in_test: bool = True,
+    val_strategy: str = "carve",
 ) -> List[Split]:
+    """Balanced patient-group k-fold with either validation strategy.
+
+    ``val_strategy="carve"`` reproduces the committed ``splits_seed42.json`` byte for byte and is
+    kept as the default for that reason only. ``"rotate"`` is the Phase 3 strategy (see
+    ``_rotate_validation``); ``PREREGISTRATION_PHASE3.md`` registers it.
+    """
+    if val_strategy not in ("carve", "rotate"):
+        raise ValueError(f"val_strategy must be 'carve' or 'rotate', got {val_strategy!r}")
     stats = compute_group_stats(index_df)
     assign = balanced_group_kfold(stats, n_folds, seed)
+    if val_strategy == "rotate":
+        weights = {g: s.total_duration_sec for g, s in stats.items()}
+        splits = splits_from_assignment(assign, list(stats), val_fraction, weights)
+        for s in splits:
+            if require_seizure_in_test and not any(stats[g].has_seizure for g in s.test_groups):
+                raise ValueError(f"fold {s.fold} test set has no seizure group")
+            if require_seizure_in_val and not any(stats[g].has_seizure for g in s.val_groups):
+                raise ValueError(f"fold {s.fold} validation set has no seizure group")
+        return splits
     splits: List[Split] = []
     for fold in range(n_folds):
         test_groups = sorted(assign[fold])
@@ -169,6 +248,31 @@ def make_splits(
             test_groups=test_groups,
         ))
     return splits
+
+
+def make_logo_splits(
+    groups: Sequence[str],
+    val_fraction: float = 0.20,
+    seed: int = 42,
+    weights: Optional[Dict[str, float]] = None,
+) -> List[Split]:
+    """Leave-one-group-out: every group is the test set once; validation rotates.
+
+    Fold order is a seeded shuffle of the group names so the cyclic validation neighbours are
+    not alphabetical (chb01..chb24 are recording-order, not clinically meaningful, but a fixed
+    order would still make every validation panel a run of consecutive case numbers).
+    """
+    order = list(groups)
+    random.Random(seed).shuffle(order)
+    assign = {i: [g] for i, g in enumerate(order)}
+    return splits_from_assignment(assign, sorted(groups), val_fraction, weights)
+
+
+def validation_coverage(splits: Sequence[Split]) -> Dict[str, int]:
+    """How many folds each group serves as validation in. The Phase 1-2 file scores 7 of 23
+    groups > 0 across its three run folds; rotation scores every group at least once."""
+    all_groups = sorted({g for s in splits for g in (s.train_groups + s.val_groups + s.test_groups)})
+    return {g: sum(g in s.val_groups for s in splits) for g in all_groups}
 
 
 def split_to_file_ids(index_df, split: Split) -> Dict[str, List[str]]:

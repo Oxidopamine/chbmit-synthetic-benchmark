@@ -26,6 +26,11 @@ Figures, in the order they appear:
   fig3_tail_control           -- every raw cell of delta FP/24h for admitted vs reverted, split by
       arm so the dose-stratification argument is visible rather than asserted. A strip plot, not a
       violin: at n=5..22 per group a smoothed density would invent shape the data cannot support.
+  fig4_harm_curve             -- harm rate as a function of the margin, one panel per axis, against
+      the different-initialisation null from 27 identical re-run pairs. Reads from
+      analysis_tierB/phase3_free/ (run scripts/analyze_validation_selection.py first).
+  fig5_policy_dots            -- every deployable policy in the Phase 2b grid, per-cell points and
+      the mean, event-F1 and FP/24h side by side; hue = whether the policy needs the admission stage.
 
 Every number plotted is read from the committed CSVs; nothing is recomputed or smoothed.
 
@@ -267,7 +272,106 @@ def fig3_tail_control(out: Path, t: dict, theme: str):
     plt.close(fig)
 
 
-FIGURES = (fig1_realized_vs_requested, fig2_dose_response, fig3_tail_control)
+P3 = A / "phase3_free"
+
+
+def fig4_harm_curve(out: Path, t: dict, theme: str):
+    """Harm rate as a function of the margin, against the different-initialisation null.
+
+    Two panels, one per harm axis, each sweeping its own margin with the other axis disabled.
+    Arms are deltas against real_only in the p3 grid (pool reference, r = 1.0, the grid where the
+    gate works as published). The null curve is the symmetrised same-specification re-run floor
+    (27 TCN baseline pairs, _v2 vs _p2). A vertical rule marks the registered margin: at that
+    point every curve, including the null, sits near 0.5, which is the figure's whole argument.
+    """
+    import matplotlib.pyplot as plt
+    cv = pd.read_csv(P3 / "harm_curve_p3_r100.csv")
+    nl = pd.read_csv(P3 / "harm_curve_null.csv")
+    cv = cv[cv.reference == "real_only"]
+    series = [("ungated", t["s1"], "-", "ungated (r = 1.0)"),
+              ("gated q0.95", t["s2"], "-", "gated q = 0.95, as deployed"),
+              ("class_weighted", t["ink2"], "--", "class_weighted")]
+    fig, axes = plt.subplots(1, 2, figsize=(7.4, 3.3))
+    for ax, axis, xlab, reg in ((axes[0], "event_f1", "harm margin on Δ event-F1", 0.01),
+                                (axes[1], "fp24h", "harm margin on Δ FP/24 h", 0.25)):
+        n = nl[nl.axis == axis].sort_values("margin")
+        ax.plot(n.margin, n.harm_rate, "-", c=t["muted"], lw=3.0, alpha=0.6, zorder=1,
+                solid_capstyle="round", label="null: identical spec, re-run")
+        for arm, colour, ls, lab in series:
+            s = cv[(cv.axis == axis) & (cv.arm == arm)].sort_values("margin")
+            if not len(s):
+                continue
+            ax.plot(s.margin, s.harm_rate, ls, c=colour, lw=1.5, zorder=3, label=lab,
+                    solid_capstyle="round", dash_capstyle="round")
+        ax.axvline(reg, c=t["ink2"], lw=PX, zorder=2)
+        ax.text(reg, 1.0, f" registered ({reg:g})", ha="left", va="top", fontsize=7, color=t["ink2"])
+        ax.set_ylim(0, 1.0)
+        ax.set_xlim(left=0)
+        ax.set_xlabel(xlab)
+        ax.grid(True, axis="y", zorder=0)
+        ax.set_axisbelow(True)
+    axes[0].set_ylabel("harm rate  (fraction of 9 cells)")
+    axes[0].legend(loc="upper right", fontsize=7)
+    fig.suptitle("A harm rate is only readable where it leaves the re-run null", fontsize=10,
+                 color=t["ink"], y=1.02)
+    _save(fig, out, "fig4_harm_curve", theme)
+    plt.close(fig)
+
+
+def fig5_policy_dots(out: Path, t: dict, theme: str):
+    """Deployable policies, p3 grid: per-cell points and the mean, event-F1 and FP/24 h.
+
+    Policies that need the trust gate's admission machinery are one hue; policies that select
+    among already-trained arms on validation are the other. The reader can see that the
+    validation-selection policies land on the same event-F1 and a lower false-alarm rate, cell
+    for cell, with no admission stage at all.
+    """
+    import matplotlib.pyplot as plt
+    pol = pd.read_csv(P3 / "policies_p3_r100.csv")
+    order = [("real_only", "real_only", "base"),
+             ("class_weighted", "class_weighted", "base"),
+             ("ungated", "ungated (r = 1.0)", "base"),
+             ("admit_always q0.95", "gate admission only, no fail-closed", "gate"),
+             ("gated q0.95", "trust gate as deployed", "gate"),
+             ("random_gated q0.95", "random admission, as deployed", "gate"),
+             ("ungated_failclosed", "fail-closed rule on ungated (no admission)", "sel"),
+             ("valsel4", "validation argmax of 4 arms", "sel"),
+             ("valsel4_fpguard", "validation argmax, gate's FP guard", "sel")]
+    colour = {"base": t["muted"], "gate": t["s2"], "sel": t["s1"]}
+    marker = {"base": "o", "gate": "^", "sel": "s"}
+    fig, axes = plt.subplots(1, 2, figsize=(8.2, 3.9), sharey=True)
+    rng = np.random.default_rng(0)
+    ys = np.arange(len(order))[::-1]
+    for ax, metric, xlab in ((axes[0], "event_f1", "test event-F1"),
+                             (axes[1], "fp_per_24h", "test FP/24 h")):
+        for y, (name, lab, kind) in zip(ys, order):
+            v = pol[pol.policy == name][metric].to_numpy()
+            ax.scatter(v, np.full(len(v), y) + rng.normal(0, 0.08, len(v)), s=14, c=colour[kind],
+                       alpha=0.45, linewidths=0, zorder=2)
+            ax.scatter([v.mean()], [y], s=60, marker=marker[kind], c=colour[kind],
+                       linewidths=1.5 * PX, edgecolors=t["surface"], zorder=4)
+        ax.set_xlabel(xlab)
+        ax.grid(True, axis="x", zorder=0)
+        ax.set_axisbelow(True)
+    axes[0].set_yticks(ys)
+    axes[0].set_yticklabels([lab for _, lab, _ in order], fontsize=7.5)
+    axes[1].set_xscale("symlog", linthresh=10)
+    axes[1].set_xlim(left=0)
+    # Legend by kind, once.
+    from matplotlib.lines import Line2D
+    handles = [Line2D([], [], marker=marker[k], color=colour[k], ls="", ms=7, label=l)
+               for k, l in (("base", "single arm"), ("gate", "needs the admission stage"),
+                            ("sel", "validation selection, no admission"))]
+    # Below the axes, so it never sits on the low-FP rows it is meant to draw attention to.
+    fig.legend(handles=handles, loc="lower center", bbox_to_anchor=(0.5, -0.06), ncol=3, fontsize=7.5)
+    fig.suptitle("Validation selection matches the gate on event-F1 and beats it on false alarms "
+                 "(TCN, 9 cells, small points; large marker = mean)", fontsize=9.5, color=t["ink"], y=1.0)
+    _save(fig, out, "fig5_policy_dots", theme)
+    plt.close(fig)
+
+
+FIGURES = (fig1_realized_vs_requested, fig2_dose_response, fig3_tail_control,
+           fig4_harm_curve, fig5_policy_dots)
 
 
 def main():

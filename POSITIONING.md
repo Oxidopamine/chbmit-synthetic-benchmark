@@ -70,3 +70,23 @@ classifier-dependent. Do **not** present it as seizure-detection evidence.
 - [ ] Ensure "adapted" / "reformulated" language for the gate appears consistently (no
       "proposed" / "novel").
 - [ ] Ensure the abstract and intro lead with the **harm** finding, gate introduced second.
+
+## Venue decision (2026-09-02)
+
+**Two-stage.** Submit the v0.5 manuscript as it stands, with the free Phase 3 analysis and without
+new GPU results, to a venue that welcomes negative and methodological results and does not require
+a second dataset: the **NeurIPS Datasets & Benchmarks track** if the deadline aligns, otherwise a
+**workshop or findings-track** paper (ML4H findings, the NeurIPS medical-imaging or time-series
+workshops). The rewrite was structured so that Phase 3 results drop into §4.5 (Q-B), §4.6 (floor
+margin) and a new §4.9 (positive control) without restructuring.
+
+**Journal (J Neural Eng / IEEE JBHI) only after Phase 3.** Referees there will require the
+positive control, a fold count that supports corrected inference, initialisation-controlled
+baselines for all three detectors, and Siena. Phase 3 runs 1–4 supply the first three; Siena
+remains the one item without a plan and is the honest answer to "what is still missing".
+
+**Lead with the governance question, not the negative result.** The title asks what the gate adds
+to validation model selection; the answer at n = 9 is "nothing detectable, and it costs
+false alarms". That is a claim about a published method's mechanism and is the hook; parity of
+synthetic augmentation with class weighting is the supporting negative result, already reported in
+direction by GP-EEG.

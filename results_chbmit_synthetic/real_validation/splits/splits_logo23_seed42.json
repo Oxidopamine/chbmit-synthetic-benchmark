@@ -1,0 +1,772 @@
+{
+  "seed": 42,
+  "n_folds": 23,
+  "val_strategy": "rotate",
+  "val_fraction": 0.2,
+  "weighted": false,
+  "derived_from": "results_chbmit_synthetic/real_validation/splits/splits_seed42.json",
+  "note": "leave-one-group-out over 23 groups; validation = next five groups in a seeded cyclic order",
+  "validation_coverage": {
+    "chb01": 5,
+    "chb02": 5,
+    "chb03": 5,
+    "chb04": 5,
+    "chb05": 5,
+    "chb06": 5,
+    "chb07": 5,
+    "chb08": 5,
+    "chb09": 5,
+    "chb10": 5,
+    "chb11": 5,
+    "chb12": 5,
+    "chb13": 5,
+    "chb14": 5,
+    "chb15": 5,
+    "chb16": 5,
+    "chb17": 5,
+    "chb18": 5,
+    "chb19": 5,
+    "chb20": 5,
+    "chb22": 5,
+    "chb23": 5,
+    "chb24": 5
+  },
+  "folds": [
+    {
+      "fold": 0,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb04",
+        "chb05",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb18",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb03",
+        "chb06",
+        "chb14",
+        "chb15",
+        "chb16"
+      ],
+      "test_groups": [
+        "chb17"
+      ]
+    },
+    {
+      "fold": 1,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb04",
+        "chb05",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb17",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb03",
+        "chb06",
+        "chb14",
+        "chb15",
+        "chb18"
+      ],
+      "test_groups": [
+        "chb16"
+      ]
+    },
+    {
+      "fold": 2,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb04",
+        "chb05",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb16",
+        "chb17",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb06",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb18"
+      ],
+      "test_groups": [
+        "chb03"
+      ]
+    },
+    {
+      "fold": 3,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb16",
+        "chb17",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23"
+      ],
+      "val_groups": [
+        "chb06",
+        "chb13",
+        "chb14",
+        "chb18",
+        "chb24"
+      ],
+      "test_groups": [
+        "chb15"
+      ]
+    },
+    {
+      "fold": 4,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23"
+      ],
+      "val_groups": [
+        "chb07",
+        "chb13",
+        "chb14",
+        "chb18",
+        "chb24"
+      ],
+      "test_groups": [
+        "chb06"
+      ]
+    },
+    {
+      "fold": 5,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb06",
+        "chb08",
+        "chb09",
+        "chb11",
+        "chb12",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23"
+      ],
+      "val_groups": [
+        "chb07",
+        "chb10",
+        "chb13",
+        "chb18",
+        "chb24"
+      ],
+      "test_groups": [
+        "chb14"
+      ]
+    },
+    {
+      "fold": 6,
+      "train_groups": [
+        "chb01",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb06",
+        "chb08",
+        "chb09",
+        "chb11",
+        "chb12",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb19",
+        "chb20",
+        "chb22",
+        "chb23"
+      ],
+      "val_groups": [
+        "chb02",
+        "chb07",
+        "chb10",
+        "chb13",
+        "chb24"
+      ],
+      "test_groups": [
+        "chb18"
+      ]
+    },
+    {
+      "fold": 7,
+      "train_groups": [
+        "chb01",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb06",
+        "chb08",
+        "chb09",
+        "chb11",
+        "chb12",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb19",
+        "chb22",
+        "chb23"
+      ],
+      "val_groups": [
+        "chb02",
+        "chb07",
+        "chb10",
+        "chb20",
+        "chb24"
+      ],
+      "test_groups": [
+        "chb13"
+      ]
+    },
+    {
+      "fold": 8,
+      "train_groups": [
+        "chb01",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb06",
+        "chb08",
+        "chb09",
+        "chb11",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb19",
+        "chb22",
+        "chb23"
+      ],
+      "val_groups": [
+        "chb02",
+        "chb07",
+        "chb10",
+        "chb12",
+        "chb20"
+      ],
+      "test_groups": [
+        "chb24"
+      ]
+    },
+    {
+      "fold": 9,
+      "train_groups": [
+        "chb01",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb06",
+        "chb08",
+        "chb09",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb19",
+        "chb22",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb02",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb20"
+      ],
+      "test_groups": [
+        "chb07"
+      ]
+    },
+    {
+      "fold": 10,
+      "train_groups": [
+        "chb01",
+        "chb03",
+        "chb04",
+        "chb05",
+        "chb06",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb19",
+        "chb22",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb02",
+        "chb11",
+        "chb12",
+        "chb20",
+        "chb23"
+      ],
+      "test_groups": [
+        "chb10"
+      ]
+    },
+    {
+      "fold": 11,
+      "train_groups": [
+        "chb01",
+        "chb03",
+        "chb04",
+        "chb06",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb19",
+        "chb22",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb05",
+        "chb11",
+        "chb12",
+        "chb20",
+        "chb23"
+      ],
+      "test_groups": [
+        "chb02"
+      ]
+    },
+    {
+      "fold": 12,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb06",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb22",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb05",
+        "chb11",
+        "chb12",
+        "chb19",
+        "chb23"
+      ],
+      "test_groups": [
+        "chb20"
+      ]
+    },
+    {
+      "fold": 13,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb06",
+        "chb07",
+        "chb09",
+        "chb10",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb20",
+        "chb22",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb05",
+        "chb08",
+        "chb11",
+        "chb19",
+        "chb23"
+      ],
+      "test_groups": [
+        "chb12"
+      ]
+    },
+    {
+      "fold": 14,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb06",
+        "chb07",
+        "chb10",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb20",
+        "chb22",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb05",
+        "chb08",
+        "chb09",
+        "chb19",
+        "chb23"
+      ],
+      "test_groups": [
+        "chb11"
+      ]
+    },
+    {
+      "fold": 15,
+      "train_groups": [
+        "chb02",
+        "chb03",
+        "chb04",
+        "chb06",
+        "chb07",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb20",
+        "chb22",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb01",
+        "chb05",
+        "chb08",
+        "chb09",
+        "chb19"
+      ],
+      "test_groups": [
+        "chb23"
+      ]
+    },
+    {
+      "fold": 16,
+      "train_groups": [
+        "chb02",
+        "chb03",
+        "chb06",
+        "chb07",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb20",
+        "chb22",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb01",
+        "chb04",
+        "chb08",
+        "chb09",
+        "chb19"
+      ],
+      "test_groups": [
+        "chb05"
+      ]
+    },
+    {
+      "fold": 17,
+      "train_groups": [
+        "chb02",
+        "chb03",
+        "chb05",
+        "chb06",
+        "chb07",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb18",
+        "chb20",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb01",
+        "chb04",
+        "chb08",
+        "chb09",
+        "chb22"
+      ],
+      "test_groups": [
+        "chb19"
+      ]
+    },
+    {
+      "fold": 18,
+      "train_groups": [
+        "chb02",
+        "chb03",
+        "chb05",
+        "chb06",
+        "chb07",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb16",
+        "chb18",
+        "chb19",
+        "chb20",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb01",
+        "chb04",
+        "chb09",
+        "chb17",
+        "chb22"
+      ],
+      "test_groups": [
+        "chb08"
+      ]
+    },
+    {
+      "fold": 19,
+      "train_groups": [
+        "chb02",
+        "chb03",
+        "chb05",
+        "chb06",
+        "chb07",
+        "chb08",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb18",
+        "chb19",
+        "chb20",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb01",
+        "chb04",
+        "chb16",
+        "chb17",
+        "chb22"
+      ],
+      "test_groups": [
+        "chb09"
+      ]
+    },
+    {
+      "fold": 20,
+      "train_groups": [
+        "chb02",
+        "chb05",
+        "chb06",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb15",
+        "chb18",
+        "chb19",
+        "chb20",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb03",
+        "chb04",
+        "chb16",
+        "chb17",
+        "chb22"
+      ],
+      "test_groups": [
+        "chb01"
+      ]
+    },
+    {
+      "fold": 21,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb05",
+        "chb06",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb18",
+        "chb19",
+        "chb20",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb03",
+        "chb15",
+        "chb16",
+        "chb17",
+        "chb22"
+      ],
+      "test_groups": [
+        "chb04"
+      ]
+    },
+    {
+      "fold": 22,
+      "train_groups": [
+        "chb01",
+        "chb02",
+        "chb04",
+        "chb05",
+        "chb07",
+        "chb08",
+        "chb09",
+        "chb10",
+        "chb11",
+        "chb12",
+        "chb13",
+        "chb14",
+        "chb18",
+        "chb19",
+        "chb20",
+        "chb23",
+        "chb24"
+      ],
+      "val_groups": [
+        "chb03",
+        "chb06",
+        "chb15",
+        "chb16",
+        "chb17"
+      ],
+      "test_groups": [
+        "chb22"
+      ]
+    }
+  ]
+}

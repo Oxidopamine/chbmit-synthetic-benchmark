@@ -109,3 +109,79 @@ def test_split_to_file_ids(tmp_path):
     assert set(ids["val"]).isdisjoint(ids["test"])
     total = len(ids["train"]) + len(ids["val"]) + len(ids["test"])
     assert total == len(df)
+
+
+# --------------------------------------------------------------------- Phase 3: rotating validation
+
+from chbmit.splits import make_logo_splits, splits_from_assignment, validation_coverage
+
+
+def test_carve_default_is_unchanged():
+    """`val_strategy` defaults to the legacy carve so the committed splits_seed42.json still
+    reproduces. The rotate strategy must be opted into."""
+    df = _index(12, seed=4)
+    legacy = make_splits(df, n_folds=4, val_fraction=0.25, seed=42)
+    explicit = make_splits(df, n_folds=4, val_fraction=0.25, seed=42, val_strategy="carve")
+    assert [x.as_dict() for x in legacy] == [x.as_dict() for x in explicit]
+
+
+def test_rotate_covers_every_group_as_validation():
+    df = _index(12, seed=4)
+    splits = make_splits(df, n_folds=4, val_fraction=0.25, seed=42, val_strategy="rotate")
+    all_groups = set(df["group"].unique())
+    stats = compute_group_stats(df)
+    seen_test = set()
+    for s in splits:
+        tr, va, te = set(s.train_groups), set(s.val_groups), set(s.test_groups)
+        assert tr.isdisjoint(va) and tr.isdisjoint(te) and va.isdisjoint(te)
+        assert tr | va | te == all_groups
+        assert len(tr) > 0 and len(va) > 0 and len(te) > 0
+        assert any(stats[g].has_seizure for g in te)
+        assert any(stats[g].has_seizure for g in va)
+        seen_test |= te
+    assert seen_test == all_groups
+    cov = validation_coverage(splits)
+    # The defect being fixed: with carve, a few seizure-rich groups are validation everywhere and
+    # most groups never are. With rotation every group serves as validation at least once.
+    assert min(cov.values()) >= 1
+
+
+def test_carve_has_the_narrow_panel_defect_rotation_fixes():
+    """Documents the defect rather than asserting a fixed number: on the same index, rotation's
+    validation coverage is never narrower than carve's, and strictly wider here."""
+    df = _index(12, seed=4)
+    carve = validation_coverage(make_splits(df, n_folds=4, val_fraction=0.25, seed=42))
+    rot = validation_coverage(make_splits(df, n_folds=4, val_fraction=0.25, seed=42,
+                                          val_strategy="rotate"))
+    assert sum(v > 0 for v in rot.values()) >= sum(v > 0 for v in carve.values())
+    assert sum(v > 0 for v in rot.values()) == len(rot)
+
+
+def test_rotation_keeps_the_committed_test_partition():
+    """Phase 3's 5-fold file is derived from the committed assignment: same test folds, new val."""
+    assign = {0: ["a", "b"], 1: ["c", "d"], 2: ["e", "f"], 3: ["g", "h"], 4: ["i", "j"]}
+    groups = [g for v in assign.values() for g in v]
+    splits = splits_from_assignment(assign, groups, val_fraction=0.20)
+    for s in splits:
+        assert s.test_groups == sorted(assign[s.fold])
+        assert s.val_groups == sorted(assign[(s.fold + 1) % 5])   # one whole fold = 20 %
+        assert len(s.train_groups) == 6
+
+
+def test_logo_splits_every_group_once_with_rotating_val():
+    groups = [f"chb{i:02d}" for i in range(1, 24)]
+    splits = make_logo_splits(groups, val_fraction=0.20, seed=42)
+    assert len(splits) == 23
+    tests = [g for s in splits for g in s.test_groups]
+    assert sorted(tests) == groups                    # each group is the test set exactly once
+    for s in splits:
+        assert len(s.test_groups) == 1
+        assert len(s.val_groups) == 5                 # 0.2 * 22 = 4.4 -> 5 whole single-group folds
+        assert set(s.val_groups).isdisjoint(s.test_groups)
+        assert set(s.train_groups).isdisjoint(s.val_groups)
+        assert len(s.train_groups) + len(s.val_groups) + 1 == 23
+    cov = validation_coverage(splits)
+    assert set(cov.values()) == {5}                   # cyclic: every group is validation 5 times
+    # Deterministic.
+    again = make_logo_splits(groups, val_fraction=0.20, seed=42)
+    assert [x.as_dict() for x in again] == [x.as_dict() for x in splits]

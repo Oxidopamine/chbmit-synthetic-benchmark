@@ -62,6 +62,7 @@ from synthetic.band_limit import band_limit_windows
 from synthetic.trust_gate import TrustGateConfig
 from experiments.training import (
     run_cell, CellSpec, TrainConfig, UNGATED_SYNTHETIC, GATED_SYNTHETIC)
+from experiments.environment import record_environment
 
 # Paths are overridable so the same driver runs unchanged on a workstation, a pod, or a
 # Vertex AI custom job (where code and data are staged onto the container's local disk).
@@ -72,7 +73,7 @@ RES = Path(os.environ.get("CHBMIT_RESULTS", "results_chbmit_synthetic/real_valid
 OUT = RES / "analysis_tierB"
 GEN_DIR = RES / "generators"
 DEVICE = "cuda"
-FRAC = 1.0
+FRAC = 1.0   # overridden by --scarcity
 SIMPLE_BASELINES = ("class_weighted", "classical_aug")   # registered harm reference
 # Conditions that inject nothing, so they run once per (fold,seed,detector) whatever the grid.
 # Everything else is a synthetic arm crossed with --ratios: ungated, gated x --qs, and
@@ -186,16 +187,38 @@ def main():
     ap.add_argument("--num-workers", type=int, default=0)
     ap.add_argument("--tag", default="_multiseed")
     ap.add_argument("--no-backup", action="store_true")  # skip git commit/push (for smoke tests)
+    # Phase 3 axes. --splits selects the fold file: the committed splits_seed42.json (Phases 1-2,
+    # carved validation -- 7 of 23 groups ever serve as validation), splits_rot5_seed42.json (same
+    # test folds, rotating validation) or splits_logo23_seed42.json (leave-one-group-out, the
+    # registered Phase 3 design). Fold indices in --folds index into whichever file is given.
+    ap.add_argument("--splits", default=str(RES / "splits/splits_seed42.json"),
+                    help="split file; see scripts/make_phase3_splits.py for the Phase 3 files")
+    ap.add_argument("--scarcity", type=float, default=1.0,
+                    help="event-level scarcity fraction for the real training set (default 1.0)")
+    # The same-seed floor (PREREGISTRATION_PHASE3.md Sec 2, item 1). Offsetting ONLY the seed the
+    # synthetic provider draws with leaves weight initialisation (torch.manual_seed(spec.seed)
+    # before build_model), the real training table and the shuffle order identical, and changes
+    # nothing but which synthetic windows are injected. Pairing a cell against the same cell at
+    # offset 0 therefore measures the floor that applies to a paired synthetic-vs-reference delta,
+    # which the different-initialisation floor (sigma 0.10-0.17) does not.
+    ap.add_argument("--synth-seed-offset", type=int, default=0,
+                    help="added to the provider seed only; non-zero runs the same-seed floor arm")
     args = ap.parse_args()
     random_qs = args.qs if args.random_qs is None else args.random_qs
+    global FRAC
+    FRAC = args.scarcity
     out_csv = OUT / f"downstream_gated{args.tag}.csv"
     OUT.mkdir(parents=True, exist_ok=True)
+    # Environment record beside the CSV, before the first cell (AUDIT_2026-08-31 F7).
+    record_environment(OUT / f"run_environment{args.tag}.json")
 
     t0 = time.time()
     index_df = pd.read_csv(PROC)
     win = pd.read_csv(RES / "windows/windows.csv")
     ev = pd.read_csv(RES / "windows/events.csv")
-    sp = json.load(open(RES / "splits/splits_seed42.json"))
+    sp = json.load(open(args.splits))
+    print(f"[splits] {args.splits}: {sp.get('n_folds')} folds, "
+          f"val_strategy={sp.get('val_strategy', 'carve')}, scarcity={FRAC}", flush=True)
     fs = int(zarr.open_group(STORE, mode="r").attrs["sampling_rate"])
     cfg = TrainConfig(epochs=args.epochs, device=DEVICE, num_workers=args.num_workers)
 
@@ -247,23 +270,33 @@ def main():
                                           seed=seed)
             prefetch_windows(train_table, STORE, workers=16, dtype="float16")
 
-            # WGAN-GP for (fold,seed): load cached checkpoint or train + persist.
-            gdir = GEN_DIR / f"wgan_f{fold}_s{seed}"
-            wgan = build_provider("wgan_gp", WGANConfig(epochs=args.gen_epochs,
-                                                        min_ictal_windows=256,
-                                                        device=DEVICE, seed=seed))
-            if (gdir / "generator.pt").exists():
-                wgan._load_state(gdir)
-                wgan.fitted = True
-                print(f"[{time.time()-t0:6.0f}s] f{fold} s{seed}: WGAN loaded from cache", flush=True)
-            else:
-                fit_provider_for_cell(wgan, index_df, win, ev, STORE, split, fold, seed, FRAC)
-                gdir.mkdir(parents=True, exist_ok=True)
-                wgan._save_state(gdir)
-                print(f"[{time.time()-t0:6.0f}s] f{fold} s{seed}: WGAN trained+saved", flush=True)
+            # WGAN-GP for (fold,seed): load cached checkpoint or train + persist. Skipped
+            # entirely when no synthetic arm is requested (`--ratios` with no values: the
+            # baseline-only re-run), so that job never pays for a generator it does not use.
+            # The checkpoint is keyed by the split FILE as well as (fold, seed): a fold index means
+            # a different training set under a different file, and a generator fit on one must
+            # never be reused for the other (leakage rule 4).
+            split_tag = Path(args.splits).stem.replace("splits_", "")
+            gkey = (f"wgan_f{fold}_s{seed}" if split_tag == "seed42" and FRAC == 1.0
+                    else f"wgan_{split_tag}_sc{FRAC:g}_f{fold}_s{seed}")
+            gdir = GEN_DIR / gkey
+            bl_wgan = None
+            if args.ratios:
+                wgan = build_provider("wgan_gp", WGANConfig(epochs=args.gen_epochs,
+                                                            min_ictal_windows=256,
+                                                            device=DEVICE, seed=seed))
+                if (gdir / "generator.pt").exists():
+                    wgan._load_state(gdir)
+                    wgan.fitted = True
+                    print(f"[{time.time()-t0:6.0f}s] f{fold} s{seed}: WGAN loaded from cache {gkey}", flush=True)
+                else:
+                    fit_provider_for_cell(wgan, index_df, win, ev, STORE, split, fold, seed, FRAC)
+                    gdir.mkdir(parents=True, exist_ok=True)
+                    wgan._save_state(gdir)
+                    print(f"[{time.time()-t0:6.0f}s] f{fold} s{seed}: WGAN trained+saved {gkey}", flush=True)
 
-            def bl_wgan(n, s):
-                return band_limit_windows(wgan.generate(n, seed=s), fs=fs)
+                def bl_wgan(n, s, _w=wgan, _off=args.synth_seed_offset):
+                    return band_limit_windows(_w.generate(n, seed=s + _off), fs=fs)
 
             for det in args.detectors:
                 if (fold, seed, det) in done_blocks:
@@ -272,7 +305,9 @@ def main():
                 def _spec(cond, **kw):
                     return CellSpec(fold=fold, seed=seed, scarcity_fraction=FRAC,
                                     detector=det, condition=cond, **kw)
-                base = {"fold": fold, "seed": seed, "detector": det}
+                base = {"fold": fold, "seed": seed, "detector": det,
+                        "synth_seed_offset": args.synth_seed_offset, "scarcity": FRAC,
+                        "splits_file": Path(args.splits).name}
 
                 teacher_res = run_cell(_spec("real_only"), index_df, win, ev, STORE, split,
                                        cfg=cfg, return_model=True)
@@ -332,7 +367,7 @@ def main():
         # Per-fold backup: commit + push CSV and this fold's WGAN checkpoints.
         pd.DataFrame(rows).to_csv(out_csv, index=False)
         if not args.no_backup:
-            ckpts = [GEN_DIR / f"wgan_f{fold}_s{seed}" for seed in args.seeds]
+            ckpts = [p for p in GEN_DIR.glob(f"wgan_*f{fold}_s*") if p.is_dir()]
             _git_backup([out_csv, *ckpts],
                         f"Multiseed downstream: fold {fold} complete ({args.tag})")
             print(f"[{time.time()-t0:6.0f}s] fold {fold} committed+pushed", flush=True)

@@ -15,7 +15,7 @@
 # the next incomplete block.
 #
 # Required env: BUCKET, DETECTOR, TAG. Optional: FOLDS, SEEDS, QS, RATIOS, RANDOM_QS, EPOCHS,
-# SYNC_SECS.
+# SYNC_SECS, SPLITS, SCARCITY, MODE (grid | positive_control), POSCTRL_ARGS.
 set -uo pipefail
 
 BUCKET="${BUCKET:?BUCKET is required}"
@@ -35,10 +35,24 @@ GATE_REFERENCE="${GATE_REFERENCE:-real_ictal}"
 EPOCHS="${EPOCHS:-80}"
 SYNC_SECS="${SYNC_SECS:-60}"
 NUM_WORKERS="${NUM_WORKERS:-0}"
+# Phase 3 axes. SPLITS names a file under real_validation/splits/ (splits_seed42.json reproduces
+# Phases 1-2; splits_rot5_seed42.json rotates validation on the same test folds;
+# splits_logo23_seed42.json is the registered leave-one-group-out design). MODE=positive_control
+# runs scripts/positive_control_gate.py instead of the grid driver.
+SPLITS="${SPLITS:-splits_seed42.json}"
+SCARCITY="${SCARCITY:-1.0}"
+MODE="${MODE:-grid}"
+POSCTRL_ARGS="${POSCTRL_ARGS:-}"
 
 WORK=/workspace
 RES="$WORK/results_chbmit_synthetic/real_validation"
-CSV="$RES/analysis_tierB/downstream_gated${TAG}.csv"
+if [ "$MODE" = "positive_control" ]; then
+  CSV="$RES/analysis_tierB/positive_control_gate${TAG}.csv"
+  CSV_REMOTE="runs/positive_control_gate${TAG}.csv"
+else
+  CSV="$RES/analysis_tierB/downstream_gated${TAG}.csv"
+  CSV_REMOTE="runs/downstream_gated${TAG}.csv"
+fi
 
 log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 
@@ -46,19 +60,19 @@ log() { echo "[$(date -u +%H:%M:%S)] $*"; }
 # CLI in the image. Fall back to whichever CLI is present if the mount is missing.
 MNT="/gcs/$BUCKET"
 if [ -d "$MNT" ]; then
-  MODE=fuse
+  MODE_GCS=fuse
 elif command -v gcloud >/dev/null 2>&1; then
-  MODE=gcloud
+  MODE_GCS=gcloud
 elif command -v gsutil >/dev/null 2>&1; then
-  MODE=gsutil
+  MODE_GCS=gsutil
 else
   echo "FATAL: no /gcs mount and no gcloud/gsutil in image"; exit 1
 fi
-log "GCS access mode: $MODE"
+log "GCS access mode: $MODE_GCS"
 
 fetch_dir() {  # fetch_dir <bucket-relative-dir> <local-dir>
   mkdir -p "$2"
-  case $MODE in
+  case $MODE_GCS in
     fuse)   cp -r "$MNT/$1/." "$2/" ;;
     gcloud) gcloud storage rsync -r "gs://$BUCKET/$1" "$2" -q ;;
     gsutil) gsutil -q -m rsync -r "gs://$BUCKET/$1" "$2" ;;
@@ -80,7 +94,7 @@ fetch_bulk() {  # fetch_bulk <bucket-relative-dir> <local-dir> -- for the zarr s
   fi
 }
 fetch_file() {  # fetch_file <bucket-relative-file> <local-file>  (non-fatal)
-  case $MODE in
+  case $MODE_GCS in
     fuse)   [ -f "$MNT/$1" ] && cp "$MNT/$1" "$2" ;;
     gcloud) gcloud storage cp "gs://$BUCKET/$1" "$2" -q 2>/dev/null ;;
     gsutil) gsutil -q cp "gs://$BUCKET/$1" "$2" 2>/dev/null ;;
@@ -88,7 +102,7 @@ fetch_file() {  # fetch_file <bucket-relative-file> <local-file>  (non-fatal)
 }
 push_file() {  # push_file <local-file> <bucket-relative-file>
   [ -f "$1" ] || return 0
-  case $MODE in
+  case $MODE_GCS in
     fuse)   mkdir -p "$(dirname "$MNT/$2")" && cp "$1" "$MNT/$2" ;;
     gcloud) gcloud storage cp "$1" "gs://$BUCKET/$2" -q 2>/dev/null ;;
     gsutil) gsutil -q cp "$1" "gs://$BUCKET/$2" 2>/dev/null ;;
@@ -109,32 +123,25 @@ log "store staged: $(du -sh "$WORK/data/processed_chbmit_real" | cut -f1), $(fin
 
 log "=== resume: pull any partial CSV for this tag ==="
 mkdir -p "$RES/analysis_tierB"
-fetch_file "runs/downstream_gated${TAG}.csv" "$CSV"
+fetch_file "$CSV_REMOTE" "$CSV"
 if [ -f "$CSV" ]; then log "resumed: $(wc -l < "$CSV") lines"; else log "no prior CSV - starting fresh"; fi
 
 log "=== deps ==="
 pip install -q "numpy>=1.24,<2.0" "zarr>=2.16,<3.0" numcodecs timescoring 2>&1 | tail -2
 python -c "import torch;print('torch',torch.__version__,'cuda',torch.cuda.is_available(),
       torch.cuda.get_device_name(0) if torch.cuda.is_available() else '')"
-# Persist it too -- printing to a log that is not committed is why the torch build behind the
-# existing grids is unrecoverable (audit 2026-08-31).
-python - <<'PYENV' > "${GCS_RESULTS:-.}/run_environment.json" 2>/dev/null || true
-import json, platform, sys
-try:
-    import torch, numpy
-    env = {"torch": torch.__version__, "cuda": torch.version.cuda,
-           "cudnn": torch.backends.cudnn.version(), "numpy": numpy.__version__,
-           "device": torch.cuda.get_device_name(0) if torch.cuda.is_available() else None}
-except Exception as e:                     # never fail the job over bookkeeping
-    env = {"error": str(e)}
-env.update({"python": sys.version, "platform": platform.platform()})
-print(json.dumps(env, indent=2))
-PYENV
+# The driver itself now writes run_environment<TAG>.json beside its CSV (experiments/environment.py)
+# and the sync loop below pushes it to GCS. The earlier inline version of this wrote to
+# "${GCS_RESULTS:-.}", a variable nothing set, so the file landed in the container's cwd and was
+# lost with it -- the audit's F7 fix had not actually closed the gap until this line.
+ENV_JSON="$RES/analysis_tierB/run_environment${TAG}.json"
+[ "$MODE" = "positive_control" ] && ENV_JSON="$RES/analysis_tierB/run_environment_positive_control${TAG}.json"
 
 sync_loop() {
   while true; do
     sleep "$SYNC_SECS"
-    push_file "$CSV" "runs/downstream_gated${TAG}.csv"
+    push_file "$CSV" "$CSV_REMOTE"
+    push_file "$ENV_JSON" "runs/$(basename "$ENV_JSON")"
     push_file "$WORK/run.log" "runs/log${TAG}.txt"
   done
 }
@@ -142,25 +149,45 @@ sync_loop & SYNC_PID=$!
 finish() {
   log "=== final sync ==="
   kill "$SYNC_PID" 2>/dev/null
-  push_file "$CSV" "runs/downstream_gated${TAG}.csv"
+  push_file "$CSV" "$CSV_REMOTE"
+  push_file "$ENV_JSON" "runs/$(basename "$ENV_JSON")"
   push_file "$WORK/run.log" "runs/log${TAG}.txt"
-  log "synced runs/downstream_gated${TAG}.csv"
+  # Any generator fit in this job (new split file / scarcity) must survive the container.
+  if [ -d "$RES/generators" ]; then
+    case $MODE_GCS in
+      fuse)   mkdir -p "$MNT/real_validation/generators" && cp -rn "$RES/generators/." "$MNT/real_validation/generators/" 2>/dev/null ;;
+      gcloud) gcloud storage rsync -r "$RES/generators" "gs://$BUCKET/real_validation/generators" -q 2>/dev/null ;;
+      gsutil) gsutil -q -m rsync -r "$RES/generators" "gs://$BUCKET/real_validation/generators" 2>/dev/null ;;
+    esac
+  fi
+  log "synced $CSV_REMOTE"
 }
 trap finish EXIT TERM INT
 
-log "=== grid: detector=$DETECTOR folds=[$FOLDS] seeds=[$SEEDS] qs=[$QS] ratios=[$RATIOS] random_qs=[$RANDOM_QS] epochs=$EPOCHS ==="
 export CHBMIT_STORE="$WORK/data/processed_chbmit_real/eeg.zarr"
 export CHBMIT_PROC="$WORK/data/processed_chbmit_real/processed_index.csv"
 export CHBMIT_RESULTS="$RES"
 cd "$WORK"
+SPLIT_FILE="$RES/splits/$SPLITS"
+[ -f "$SPLIT_FILE" ] || { echo "FATAL: split file $SPLIT_FILE not found"; exit 1; }
 
-# --no-backup: the driver's git commit/push backup is meaningless here (no remote credentials);
-# the GCS sync above replaces it.
-stdbuf -oL -eL python scripts/run_multiseed_downstream.py \
-  --folds $FOLDS --seeds $SEEDS --detectors "$DETECTOR" \
-  --qs $QS --ratios $RATIOS --random-qs $RANDOM_QS \
-  --gate-reference "$GATE_REFERENCE" \
-  --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
+if [ "$MODE" = "positive_control" ]; then
+  log "=== positive control: detector=$DETECTOR folds=[$FOLDS] seeds=[$SEEDS] qs=[$QS] splits=$SPLITS extra=[$POSCTRL_ARGS] ==="
+  # shellcheck disable=SC2086
+  stdbuf -oL -eL python scripts/positive_control_gate.py \
+    --data-root "$WORK/data/processed_chbmit_real" --device cuda \
+    --folds $FOLDS --seeds $SEEDS --detectors $DETECTOR --qs $QS \
+    --splits "$SPLIT_FILE" --epochs "$EPOCHS" --tag "$TAG" $POSCTRL_ARGS 2>&1 | tee "$WORK/run.log"
+else
+  log "=== grid: detector=$DETECTOR folds=[$FOLDS] seeds=[$SEEDS] qs=[$QS] ratios=[$RATIOS] random_qs=[$RANDOM_QS] epochs=$EPOCHS splits=$SPLITS scarcity=$SCARCITY ==="
+  # --no-backup: the driver's git commit/push backup is meaningless here (no remote credentials);
+  # the GCS sync above replaces it. An EMPTY RATIOS runs the three baselines only (no generator).
+  stdbuf -oL -eL python scripts/run_multiseed_downstream.py \
+    --folds $FOLDS --seeds $SEEDS --detectors "$DETECTOR" \
+    --qs $QS --ratios $RATIOS --random-qs $RANDOM_QS \
+    --gate-reference "$GATE_REFERENCE" --splits "$SPLIT_FILE" --scarcity "$SCARCITY" \
+    --epochs "$EPOCHS" --num-workers "$NUM_WORKERS" --tag "$TAG" --no-backup 2>&1 | tee "$WORK/run.log"
+fi
 rc=${PIPESTATUS[0]}
 log "driver exit=$rc"
 exit $rc

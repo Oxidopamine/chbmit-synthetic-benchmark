@@ -15,6 +15,15 @@ the teacher has memorised); and with the published rank cut restored, teacher ad
 +0.072 event-F1 in 8 of 9 cells — which **does not survive correction for fold dependence**.
 Details and caveats in [Results](#results).
 
+**Added 2026-09-02 (free re-analysis, no GPU):** the gate's deployed behaviour is reproduced by
+**validation model selection with no admission stage**. Picking, per cell, the arm with the best
+validation event-F1 among `real_only` / `class_weighted` / `classical_aug` / `ungated`, under the
+gate's own FP guard, lands within 0.03 event-F1 of the gate in all three Phase 2 grids and lowers
+mean false alarms by 8–13 per day with no tail cell. The registered harm thresholds sit below the
+measured noise floor (identical re-runs are flagged as harm 50 % of the time). Phase 3 is
+pre-registered in [`PREREGISTRATION_PHASE3.md`](PREREGISTRATION_PHASE3.md). See
+[Phase 3 free re-analysis](#phase-3-free-re-analysis-2026-09-02).
+
 **Author:** Abdullah R. Alotaibi ·
 [github.com/Oxidopamine](https://github.com/Oxidopamine/chbmit-synthetic-benchmark)
 
@@ -320,7 +329,8 @@ scores on *real* ictal windows, and the teacher saturates there, moving `q` from
 shifts the threshold by 0.037 while changing admission **174×**. At q = 0.99 nothing is admitted
 at all. The published method instead takes a rank cut on the candidate pool, which is
 well-conditioned; `TrustGateConfig.reference = "pool"` implements that, is exposed as
-`--gate-reference pool`, and is the Phase 2b default — Phase 2a still ran `real_ictal`. The
+`--gate-reference pool`, and has been the **default in code since 2026-08-31** — Phases 1 and 2a
+both ran `real_ictal`, so reproducing those grids now requires passing that flag explicitly. The
 option existed from the start but the driver never set it, so it was present and unreachable
 until Phase 2b — see
 [Q6](#q6--why-did-the-gate-never-inject-anything).
@@ -531,6 +541,61 @@ p = 0.932), and the separation holds **within** each arm — `gated q0.5` p = 0.
 `random_gated q0.9` p = 0.0008, both clearing Bonferroni alone. The separation is a property of
 the fail-closed decision, not of how much synthetic was injected.
 
+### Phase 3 free re-analysis (2026-09-02)
+
+Everything the committed Phase 2 CSVs can answer without a GPU, from
+[`scripts/analyze_validation_selection.py`](scripts/analyze_validation_selection.py) (TCN only:
+the Phase 1 CSV has no validation columns). Outputs in `analysis_tierB/phase3_free/`.
+
+**The registered reference, chosen on validation.** The best simple baseline per cell scores
+0.359 when chosen on test and 0.325 when chosen on validation (same arm in 5 of 9 cells). Every
+"vs registered" number from this date on uses the validation-selected form; the older
+`analyze_multiseed.py` output says explicitly that it selects on test.
+
+**Does the gate add anything to validation model selection?** Deployed policies, Phase 2b grid
+(TCN, r = 1.0, pool reference, 9 cells; full tables for all three grids in
+`phase3_free/frontier_valref_*.csv`):
+
+| policy | needs admission | event-F1 | FP/24 h | worst ΔFP vs real_only | cells > +20 |
+|---|---|---|---|---|---|
+| `real_only` | – | 0.283 | 39.1 | – | – |
+| `class_weighted` | – | 0.271 | 14.4 | +55.9 | 1 |
+| `ungated` | – | 0.268 | 39.0 | +71.5 | 3 |
+| **trust gate q0.95, as deployed** | yes | **0.300** | **13.8** | 0.0 | 0 |
+| random admission q0.95, as deployed | yes | 0.307 | 27.3 | 0.0 | 0 |
+| fail-closed rule on `ungated`, no admission | no | 0.341 | 22.4 | 0.0 | 0 |
+| validation argmax of 4 arms | no | 0.291 | 13.5 | +46.7 | 1 |
+| **validation argmax, gate's FP guard** | no | **0.328** | **5.8** | 0.0 | 0 |
+
+Head-to-head against the gate, paired by cell, the FP-guarded validation selection is within
+0.03 event-F1 in every grid (p_NB 0.58–0.96) and lower on false alarms by 8–13 FP/24 h on
+average with no tail cell. Nothing is significant at n = 9; the sign of the false-alarm difference
+is consistent across three grids. Caveat: any policy that can select the reference arm coincides
+with it in some cells, so harm rates *against that reference* are partly zero by construction —
+the head-to-head rows are the non-circular comparison.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/fig5_policy_dots-dark.png">
+  <img alt="Every deployable policy in the Phase 2b grid: per-cell test event-F1 and FP/24h with the mean. Policies that need the gate's admission stage (orange) and validation-selection policies that do not (blue) reach the same event-F1; the validation-selection policies have lower false-alarm rates." src="reports/figures/fig5_policy_dots-light.png" width="100%">
+</picture>
+
+**Harm as a curve.** The registered harm thresholds (Δevent-F1 < −0.01, ΔFP/24 h > +0.25) sit
+below every measured floor. Across 27 identical-specification re-run pairs (TCN baselines, Phase 1
+vs Phase 2, differing only in initialisation seeding) the null flags **50 %** of pairs as harm on
+event-F1 and **46 %** on FP/24 h at those margins. Harm is therefore reported as a curve against
+the margin with the null overlaid; a harm rate is quotable only where a curve separates from it.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="reports/figures/fig4_harm_curve-dark.png">
+  <img alt="Harm rate against the harm margin, one panel for event-F1 and one for FP/24h, for the ungated arm, the gate as deployed and class_weighted against real_only, with the null curve from identical re-runs. At the registered margins every curve including the null is near 0.5." src="reports/figures/fig4_harm_curve-light.png" width="100%">
+</picture>
+
+**Power design.** Nadeau–Bengio MDE at 80 % power: 0.196 event-F1 for the 3 × 3 design as run,
+0.176 for 5 folds × 3 seeds, **0.087 for leave-one-group-out at one seed** (ρ falls from 0.317 to
+0.056). Folds are the lever, not seeds. Phase 3 uses the 23-fold design
+(`splits/splits_logo23_seed42.json`, from
+[`scripts/make_phase3_splits.py`](scripts/make_phase3_splits.py)).
+
 ### Statistics
 
 We report the Wilcoxon signed-rank test that is conventional in this literature **and** the
@@ -637,6 +702,13 @@ pip install -r requirements.txt
 Core: `numpy<2.0`, `scipy`, `pandas`, `zarr<3.0`, `torch>=2.1`, `scikit-learn`, `mne`, `pyedflib`,
 `timescoring`.
 
+[`requirements.lock.txt`](requirements.lock.txt) pins the exact versions of the local analysis
+environment (Python 3.10.11, CPU torch, captured 2026-09-02), which is what reproduces the
+analysis and the figures; the GPU grids ran under the pinned Vertex image instead. Every driver
+also writes a `run_environment<tag>.json` beside its results CSV
+([`experiments/environment.py`](experiments/environment.py)) recording library versions, device
+and git commit, so a result file can always be matched to what produced it.
+
 ### 1. Build the dataset
 
 ```bash
@@ -660,7 +732,7 @@ been run):
 ```bash
 python3 scripts/run_multiseed_downstream.py \
   --folds 0 1 2 --seeds 42 123 2024 --detectors eegnet lct tcn \
-  --qs 0.90 0.50 --tag _v2
+  --gate-reference real_ictal --qs 0.90 0.50 --tag _v2
 ```
 
 Phase 2a — the ratio ladder that answers Q5 and exposes Q6 (81 runs, TCN only):
@@ -668,12 +740,14 @@ Phase 2a — the ratio ladder that answers Q5 and exposes Q6 (81 runs, TCN only)
 ```bash
 python3 scripts/run_multiseed_downstream.py \
   --folds 0 1 2 --seeds 42 123 2024 --detectors tcn \
-  --ratios 0.10 0.30 --qs 0.90 --tag _p2
+  --gate-reference real_ictal --ratios 0.10 0.30 --qs 0.90 --tag _p2
 ```
 
 Phase 2b — the published pool rank cut, which is what makes `q` a real dose control and Q2
-answerable (72 runs, TCN only). `--gate-reference` defaults to `real_ictal` for backward
-compatibility with the record; **pass `pool` for any new work**:
+answerable (72 runs, TCN only). `--gate-reference` defaults to `pool` since 2026-08-31 and is
+passed explicitly below for clarity. **It is the two commands above that now need
+`real_ictal` spelled out**, because that is the reference those grids ran under and it is no
+longer the default:
 
 ```bash
 python3 scripts/run_multiseed_downstream.py \
@@ -702,13 +776,57 @@ python3 scripts/analyze_multiseed.py --tag _p3 --conds-expected 8               
 Emits the paired-delta summary, the safety–benefit frontier and the admitted-vs-reverted tail
 analysis, with Nadeau–Bengio and fold-level tests alongside Wilcoxon and an explicit comparison
 count. `--conds-expected` must match the grid's condition count, or partial blocks are treated as
-complete. Legacy 4-condition CSVs are readable with `--conds-expected 4`.
+complete. Legacy 4-condition CSVs are readable with `--conds-expected 4`. Note that this script
+selects the registered reference **on test**, and says so in its output; the validation-selected
+form used from 2026-09-02 onward comes from the script below.
+
+The [Phase 3 free re-analysis](#phase-3-free-re-analysis-2026-09-02) — validation-selected
+reference, the deployable-policy frontier, the harm curve against its null, and the power table —
+runs on CPU off the committed Phase 2 CSVs in seconds:
+
+```bash
+python3 scripts/analyze_validation_selection.py   # -> analysis_tierB/phase3_free/
+python3 scripts/make_preprint_figures.py          # -> reports/figures/ (fig1-fig5)
+```
+
+The Phase 3 split files are committed, so regenerating them is a determinism check rather than a
+required step:
+
+```bash
+python3 scripts/make_phase3_splits.py             # -> splits_rot5_seed42.json, splits_logo23_seed42.json
+```
+
+Both files carry group names only. Pass `--index` with the processed index to weight the
+validation carve by recording duration instead of by group count.
 
 ### Cloud execution
 
 `scripts/vertex_*.sh` run the grid as one Vertex AI custom job per detector on Spot instances,
 staging code and data from GCS and syncing partial results back so preemption costs at most one
-block.
+block. The processed store stays in `gs://chbmit-bench-2486a474` and is mounted into the job; it
+is never downloaded, because one egress of it costs several times its monthly storage.
+
+The submit script **refuses a floating image tag**, since a published grid submitted against
+`:latest` cannot afterwards be matched to the torch build that produced it. Resolve the digest
+once, then submit:
+
+```bash
+export IMAGE_DIGEST=$(gcloud container images describe \
+  us-docker.pkg.dev/vertex-ai/training/pytorch-gpu.2-4.py310:latest \
+  --format='value(image_summary.digest)')
+DETECTORS=tcn RATIOS=0.30 QS=0.90 GATE_REFERENCE=pool bash scripts/vertex_submit.sh _p4floor
+```
+
+`ALLOW_FLOATING_IMAGE=1` overrides that refusal, for throwaway runs only. Alongside the Phase 1
+axes (`DETECTORS`, `FOLDS`, `SEEDS`, `QS`, `RATIOS`, `GATE_REFERENCE`), the script takes `SPLITS`
+to select a Phase 3 split file, `SCARCITY` for the training-set fraction, and `MODE=positive_control`
+with `POSCTRL_ARGS` to run [`scripts/positive_control_gate.py`](scripts/positive_control_gate.py)
+in place of the grid. `SPLIT_BY=seed` shards a single-detector grid into three shorter jobs, which
+loses less work to preemption.
+
+Vertex is not the only route. [`scripts/kaggle/README.md`](scripts/kaggle/README.md) documents
+running the same Phase 3 cells on Kaggle's free weekly GPU quota, at the one-off cost of
+mirroring the store out of GCS.
 
 ## Repository layout
 
@@ -721,11 +839,13 @@ augmentation/    non-generative baselines — class weighting, classical augment
                  balanced sampling
 evaluation/      SzCORE event scoring, window metrics incl. Brier/ECE, threshold selection,
                  patient-level aggregation, paired statistics and tail risk
-experiments/     cell runner and training loop, grid drivers, aggregation
-scripts/         entry points — preprocessing, the multi-seed grid, analysis, diagnostics
+experiments/     cell runner and training loop, grid drivers, aggregation, environment record
+scripts/         entry points — preprocessing, the multi-seed grid, analysis, diagnostics;
+                 vertex_*.sh for Vertex AI and kaggle/ for the free-quota route
 reports/         DECISION_GATE_1.md (Phase 1 results and correction), DECISION_GATE_2.md
-                 (Phase 2 results), PREPRINT_DRAFT.md, related work and literature audit
-tests/           leakage, scoring, split and gate invariants
+                 (Phase 2 results), AUDIT_2026-08-31.md, PREPRINT_DRAFT.md and its
+                 SUPPLEMENT_S1_corrections.md, related work and literature audit
+tests/           leakage, scoring, split and gate invariants, Phase 3 re-analysis
 ```
 
 Key documents:
@@ -733,9 +853,13 @@ Key documents:
 | file | contents |
 |---|---|
 | [`PREREGISTRATION.md`](PREREGISTRATION.md) | analysis decisions fixed before test scoring |
+| [`PREREGISTRATION_PHASE3.md`](PREREGISTRATION_PHASE3.md) | Phase 3 design, endpoints and interpretation rules, fixed before the GPU runs |
 | [`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md) | Phase 1 results **and the correction to them** |
 | [`reports/DECISION_GATE_2.md`](reports/DECISION_GATE_2.md) | Phase 2 results — Q5, Q6 and the reopened Q2 |
-| [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) | manuscript draft (v0.4; all sections drafted, bibliographic details pending) |
+| [`reports/AUDIT_2026-08-31.md`](reports/AUDIT_2026-08-31.md) | the audit that re-derived every published statistic |
+| [`reports/PREPRINT_DRAFT.md`](reports/PREPRINT_DRAFT.md) | manuscript draft (v0.5, 2026-09-02; a single account of the final design) |
+| [`reports/SUPPLEMENT_S1_corrections.md`](reports/SUPPLEMENT_S1_corrections.md) | the correction history, kept out of the manuscript body |
+| [`reports/REFERENCES_VERIFIED_2026-09-02.md`](reports/REFERENCES_VERIFIED_2026-09-02.md) | per-reference verification of the manuscript bibliography |
 
 ## Limitations
 
@@ -803,11 +927,19 @@ Two deliberate consequences:
 None of this changes a reported result. It changes what can be claimed next, and the honest
 statement is that the constraint is financial.
 
+**Phase 3 (pre-registered, not run).** Four GPU runs in priority order — the same-seed noise floor
+(9 cells), the positive control at full n (27 blocks), the seeded EEGNet/LCT baselines (54 cells)
+and leave-one-group-out for TCN (23 blocks) — cost roughly $60–90 for the first three and
+$150–200 for the fourth on Vertex Spot A100, or nothing on Kaggle's free quota after one ~$6
+egress of the store ([`scripts/kaggle/README.md`](scripts/kaggle/README.md)). Design, primary
+endpoints and interpretation rules are fixed in
+[`PREREGISTRATION_PHASE3.md`](PREREGISTRATION_PHASE3.md).
+
 ## Known issues
 
-Five defects found by audit after each phase was scored. **All five are now fixed in code**; #1
-and #2 still describe the Phase 1 *results*, which were produced before their fixes and have only
-partly been re-run.
+Six defects found by audit after each phase was scored. **All six are now fixed in code**; #1,
+#2 and #6 still describe *results*, which were produced before their fixes and have only partly
+been re-run.
 
 1. **Detector weight initialisation was unseeded in Phase 1** — **fixed in code**
    (`experiments/training.py:343`, commit `c32705e`, in force from Phase 2 onward). `build_model`
@@ -863,8 +995,18 @@ partly been re-run.
    (independently re-derived) but did not come from the command as printed. Each rung now writes to
    its own `analysis_*_r*` outputs instead of overwriting the other's.
 
+6. **The validation panel was near-fixed** — **fixed in code 2026-09-02, not yet in the data.**
+   `chbmit/splits.py` carved validation by taking the most seizure-rich training groups first, so
+   across the three folds run only **7 of 23 groups** ever served as validation, with chb01 and
+   chb13 in all three. Every gate decision and every validation-selection policy above was
+   evaluated on that panel. `make_splits(val_strategy="rotate")` takes whole folds in cyclic order
+   instead; `scripts/make_phase3_splits.py` writes `splits_rot5_seed42.json` (same test folds,
+   rotating validation) and `splits_logo23_seed42.json` (leave-one-group-out). The legacy carve
+   remains the default so `splits_seed42.json` still reproduces.
+
 Full analysis, including which Phase 1 claims survive and which do not, is in
-[`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md).
+[`reports/DECISION_GATE_1.md`](reports/DECISION_GATE_1.md); the correction history is collected in
+[`reports/SUPPLEMENT_S1_corrections.md`](reports/SUPPLEMENT_S1_corrections.md).
 
 ## Citation
 

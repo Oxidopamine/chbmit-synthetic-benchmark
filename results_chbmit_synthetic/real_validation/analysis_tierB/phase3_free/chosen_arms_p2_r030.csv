@@ -1,0 +1,10 @@
+grid,fold,seed,ref_test,ref_val,valsel4,valsel4_fpguard,ungated_failclosed,valsel5 q0.9
+p2_r030,0,42,real_only,class_weighted,class_weighted,real_only,real_only,class_weighted
+p2_r030,0,123,class_weighted,class_weighted,class_weighted,class_weighted,ungated,class_weighted
+p2_r030,0,2024,class_weighted,class_weighted,ungated,ungated,ungated,ungated
+p2_r030,1,42,real_only,real_only,ungated,real_only,real_only,ungated
+p2_r030,1,123,classical_aug,classical_aug,ungated,classical_aug,real_only,ungated
+p2_r030,1,2024,class_weighted,class_weighted,class_weighted,class_weighted,real_only,class_weighted
+p2_r030,2,42,real_only,class_weighted,class_weighted,class_weighted,real_only,class_weighted
+p2_r030,2,123,real_only,class_weighted,class_weighted,class_weighted,real_only,gated q0.9
+p2_r030,2,2024,classical_aug,class_weighted,class_weighted,class_weighted,ungated,class_weighted

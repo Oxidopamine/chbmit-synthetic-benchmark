@@ -10,6 +10,13 @@ run_multiseed_downstream.py) and reports, PER DETECTOR, paired statistics over t
     reference arm is chosen by event-F1 and then supplies *both* metrics, so the reference is
     always one real training run rather than a per-metric best-of mixture.
 
+    **The arm is chosen on TEST event-F1 here**, which DECISION_GATE_2.md measured as a +0.035
+    inflation of the reference (validation and test agree on the arm in only 5 of 9 cells). This
+    script keeps that behaviour so the Phase 1-2 numbers stay reproducible and CI-pinned; the
+    Phase 1 CSV has no validation columns, so it cannot do otherwise. For every grid that carries
+    ``val_event_f1`` use ``scripts/analyze_validation_selection.py``, which selects the reference
+    on validation and is what the manuscript quotes from 2026-09-02 on.
+
 (b) **Corrected statistics.** Wilcoxon alone treats 9 cells sharing 3 splits as 9 independent
     observations. Reported alongside it: the Nadeau-Bengio corrected resampled t-test, a
     fold-level t-test on seed-averaged deltas (n = folds, disjoint test groups), and the
@@ -488,7 +495,8 @@ def main():
     # When only real_only is present the two references coincide; reporting both would double
     # the comparison count and make the Bonferroni threshold look twice as strict as it is.
     degraded = present == ["real_only"]
-    print(f"registered reference = best of {present} per (fold, seed)")
+    print(f"registered reference = best of {present} per (fold, seed), CHOSEN ON TEST event-F1 "
+          f"(+0.035 inflation; see analyze_validation_selection.py for the validation-selected form)")
     if missing:
         print(f"  !! MISSING registered baselines: {missing}. The 'registered' reference below "
               f"degrades to the best of what is present -- deltas are NOT the pre-registered "
